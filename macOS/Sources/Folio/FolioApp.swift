@@ -1,25 +1,20 @@
 import SwiftUI
+import Combine
 
 @main
 struct FolioApp: App {
     @StateObject private var store = NoteStore()
-
     var body: some Scene {
-        WindowGroup {
-            FolioRootView()
-                .environmentObject(store)
-                .frame(minWidth: 900, minHeight: 620)
-        }
-        .commands {
-            CommandGroup(replacing: .newItem) {
-                Button("New Note") { store.createNote() }
-                    .keyboardShortcut("n", modifiers: .command)
+        WindowGroup { FolioRootView().environmentObject(store).frame(minWidth: 980, minHeight: 650) }
+            .commands {
+                CommandGroup(replacing: .newItem) {
+                    Button("New Note") { store.createNote() }.keyboardShortcut("n", modifiers: .command)
+                }
+                CommandGroup(after: .textEditing) {
+                    Button("Toggle Pin") { store.togglePinSelected() }.keyboardShortcut("p", modifiers: [.command, .shift])
+                }
             }
-        }
-        Settings {
-            SettingsView()
-                .environmentObject(store)
-        }
+        Settings { SettingsView().environmentObject(store) }
     }
 }
 
@@ -29,9 +24,10 @@ struct FolioNote: Identifiable, Codable, Equatable {
     var body: String
     var folder: String = "Notes"
     var tags: [String] = []
-    var isPinned: Bool = false
-    var isArchived: Bool = false
-    var isLocked: Bool = false
+    var isPinned = false
+    var isArchived = false
+    var isDeleted = false
+    var createdAt: Date = .now
     var updatedAt: Date = .now
 }
 
@@ -41,7 +37,6 @@ final class NoteStore: ObservableObject {
     @Published var selection: UUID?
     @Published var query = ""
     @Published var selectedFolder = "All Notes"
-
     private let fileURL: URL
 
     init() {
@@ -52,52 +47,61 @@ final class NoteStore: ObservableObject {
         load()
         if notes.isEmpty { createNote(title: "Welcome to Folio") }
     }
-
+    var folders: [String] { Array(Set(notes.filter { !$0.isDeleted }.map(\.folder))).sorted() }
     var visibleNotes: [FolioNote] {
         notes.filter { note in
-            let folderMatch = selectedFolder == "All Notes" || note.folder == selectedFolder
-            let queryMatch = query.isEmpty || note.title.localizedCaseInsensitiveContains(query) || note.body.localizedCaseInsensitiveContains(query) || note.tags.contains(where: { $0.localizedCaseInsensitiveContains(query) })
-            return folderMatch && queryMatch && !note.isArchived && !note.isLocked
+            let location: Bool
+            switch selectedFolder {
+            case "Archive": location = note.isArchived && !note.isDeleted
+            case "Recently Deleted": location = note.isDeleted
+            case "All Notes": location = !note.isArchived && !note.isDeleted
+            default: location = note.folder == selectedFolder && !note.isArchived && !note.isDeleted
+            }
+            let match = query.isEmpty || note.title.localizedCaseInsensitiveContains(query) ||
+                note.body.localizedCaseInsensitiveContains(query) ||
+                note.tags.contains(where: { $0.localizedCaseInsensitiveContains(query) })
+            return location && match
         }.sorted { ($0.isPinned, $0.updatedAt) > ($1.isPinned, $1.updatedAt) }
     }
-
-    var selectedNote: FolioNote? { notes.first(where: { $0.id == selection }) }
-
+    var selectedNote: FolioNote? { notes.first { $0.id == selection } }
     func createNote(title: String = "Untitled Note") {
         let note = FolioNote(title: title, body: "")
-        notes.insert(note, at: 0)
-        selection = note.id
-        save()
+        notes.insert(note, at: 0); selection = note.id; selectedFolder = "All Notes"; save()
     }
-
-    func updateSelected(title: String, body: String) {
-        guard let id = selection, let index = notes.firstIndex(where: { $0.id == id }) else { return }
-        notes[index].title = title
-        notes[index].body = body
-        notes[index].updatedAt = .now
-        save()
+    func update(_ id: UUID, title: String, body: String, folder: String, tags: String) {
+        guard let i = notes.firstIndex(where: { $0.id == id }) else { return }
+        notes[i].title = title; notes[i].body = body
+        notes[i].folder = folder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Notes" : folder
+        notes[i].tags = tags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        notes[i].updatedAt = .now; save()
     }
-
     func togglePin(_ note: FolioNote) {
-        guard let index = notes.firstIndex(where: { $0.id == note.id }) else { return }
-        notes[index].isPinned.toggle()
-        notes[index].updatedAt = .now
-        save()
+        guard let i = notes.firstIndex(where: { $0.id == note.id }) else { return }
+        notes[i].isPinned.toggle(); notes[i].updatedAt = .now; save()
     }
-
-    func delete(_ note: FolioNote) {
-        notes.removeAll { $0.id == note.id }
-        if selection == note.id { selection = visibleNotes.first?.id }
-        save()
+    func togglePinSelected() { if let note = selectedNote { togglePin(note) } }
+    func archive(_ note: FolioNote) {
+        guard let i = notes.firstIndex(where: { $0.id == note.id }) else { return }
+        notes[i].isArchived = true; notes[i].updatedAt = .now
+        if selection == note.id { selection = nil }; save()
     }
-
+    func moveToTrash(_ note: FolioNote) {
+        guard let i = notes.firstIndex(where: { $0.id == note.id }) else { return }
+        notes[i].isDeleted = true; notes[i].isArchived = false
+        if selection == note.id { selection = nil }; save()
+    }
+    func restore(_ note: FolioNote) {
+        guard let i = notes.firstIndex(where: { $0.id == note.id }) else { return }
+        notes[i].isDeleted = false; notes[i].isArchived = false; notes[i].updatedAt = .now; save()
+    }
+    func permanentlyDelete(_ note: FolioNote) {
+        notes.removeAll { $0.id == note.id }; if selection == note.id { selection = nil }; save()
+    }
     private func load() {
-        guard let data = try? Data(contentsOf: fileURL),
-              let decoded = try? JSONDecoder().decode([FolioNote].self, from: data) else { return }
-        notes = decoded
-        selection = notes.first?.id
+        guard let data = try? Data(contentsOf: fileURL) else { return }
+        notes = (try? JSONDecoder().decode([FolioNote].self, from: data)) ?? []
+        selection = notes.first(where: { !$0.isDeleted && !$0.isArchived })?.id
     }
-
     private func save() {
         guard let data = try? JSONEncoder().encode(notes) else { return }
         try? data.write(to: fileURL, options: .atomic)
@@ -106,67 +110,53 @@ final class NoteStore: ObservableObject {
 
 struct FolioRootView: View {
     @EnvironmentObject private var store: NoteStore
-    @State private var draftTitle = ""
-    @State private var draftBody = ""
-
-    private let folders = ["All Notes", "Notes", "Work", "Personal", "Study", "Archive"]
-
+    private var sidebarItems: [String] { ["All Notes"] + store.folders + ["Archive", "Recently Deleted"] }
     var body: some View {
         NavigationSplitView {
-            VStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("FOLIO").font(.system(size: 20, weight: .bold, design: .rounded))
+                    Text("FOLIO").font(.system(size: 21, weight: .bold, design: .rounded))
                     Spacer()
-                    Button { store.createNote() } label: { Image(systemName: "square.and.pencil") }
-                        .help("New note")
-                }
-                .padding(.horizontal, 14).padding(.top, 12)
-                ForEach(folders, id: \.self) { folder in
-                    Button {
-                        store.selectedFolder = folder == "Archive" ? "All Notes" : folder
-                    } label: {
-                        Label(folder, systemImage: folder == "All Notes" ? "note.text" : "folder")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(8)
-                            .background(store.selectedFolder == folder ? Color.accentColor.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 8))
-                    }
-                    .buttonStyle(.plain)
+                    Button { store.createNote() } label: { Image(systemName: "square.and.pencil") }.help("New note")
+                }.padding(.bottom, 10)
+                ForEach(sidebarItems, id: \.self) { item in
+                    Button { store.selectedFolder = item } label: {
+                        Label(item, systemImage: icon(for: item)).frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(8).background(store.selectedFolder == item ? Color.accentColor.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 8))
+                    }.buttonStyle(.plain)
                 }
                 Spacer()
-                Label("Local storage", systemImage: "internaldrive")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .padding(.bottom, 10)
-            }
-            .padding(10)
-            .navigationSplitViewColumnWidth(min: 170, ideal: 205)
+                Label("Stored on this Mac", systemImage: "internaldrive").font(.caption).foregroundStyle(.secondary)
+            }.padding(14).navigationSplitViewColumnWidth(min: 175, ideal: 205)
         } content: {
             VStack(spacing: 10) {
-                TextField("Search notes", text: $store.query)
-                    .textFieldStyle(.roundedBorder)
+                TextField("Search titles, text and tags", text: $store.query).textFieldStyle(.roundedBorder)
                 List(selection: $store.selection) {
                     ForEach(store.visibleNotes) { note in
                         VStack(alignment: .leading, spacing: 5) {
                             HStack {
-                                Text(note.title.isEmpty ? "Untitled Note" : note.title)
-                                    .font(.headline).lineLimit(1)
+                                Text(note.title.isEmpty ? "Untitled Note" : note.title).font(.headline).lineLimit(1)
                                 if note.isPinned { Image(systemName: "pin.fill").foregroundStyle(.orange) }
                             }
-                            Text(note.body.isEmpty ? "No additional text" : note.body)
-                                .font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
-                            Text(note.updatedAt, style: .date)
-                                .font(.caption2).foregroundStyle(.tertiary)
-                        }
-                        .tag(note.id)
-                        .contextMenu {
+                            Text(note.body.isEmpty ? "No additional text" : note.body).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                            HStack {
+                                Text(note.folder)
+                                if !note.tags.isEmpty { Text("· " + note.tags.joined(separator: ", ")) }
+                                Spacer(); Text(note.updatedAt, style: .date)
+                            }.font(.caption2).foregroundStyle(.tertiary)
+                        }.tag(note.id).contextMenu {
                             Button(note.isPinned ? "Unpin" : "Pin") { store.togglePin(note) }
-                            Button("Delete", role: .destructive) { store.delete(note) }
+                            if note.isDeleted {
+                                Button("Restore") { store.restore(note) }
+                                Button("Delete Permanently", role: .destructive) { store.permanentlyDelete(note) }
+                            } else {
+                                Button("Archive") { store.archive(note) }
+                                Button("Move to Recently Deleted", role: .destructive) { store.moveToTrash(note) }
+                            }
                         }
                     }
-                }
-                .listStyle(.plain)
-            }
-            .padding(12)
-            .navigationSplitViewColumnWidth(min: 230, ideal: 285)
+                }.listStyle(.plain)
+            }.padding(12).navigationSplitViewColumnWidth(min: 250, ideal: 300)
         } detail: {
             if let note = store.selectedNote {
                 NoteEditor(note: note)
@@ -174,13 +164,9 @@ struct FolioRootView: View {
                 ContentUnavailableView("Select a note", systemImage: "note.text", description: Text("Create a note or choose one from the list."))
             }
         }
-        .onChange(of: store.selection) { _ in syncDraft() }
-        .onAppear { syncDraft() }
     }
-
-    private func syncDraft() {
-        draftTitle = store.selectedNote?.title ?? ""
-        draftBody = store.selectedNote?.body ?? ""
+    private func icon(for item: String) -> String {
+        switch item { case "All Notes": return "note.text"; case "Archive": return "archivebox"; case "Recently Deleted": return "trash"; default: return "folder" }
     }
 }
 
@@ -189,52 +175,55 @@ struct NoteEditor: View {
     let note: FolioNote
     @State private var title = ""
     @State private var bodyText = ""
-
+    @State private var folder = "Notes"
+    @State private var tags = ""
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                TextField("Title", text: $title)
-                    .font(.system(size: 28, weight: .bold))
-                    .textFieldStyle(.plain)
-                Spacer()
-                Button { store.togglePin(note) } label: {
-                    Image(systemName: note.isPinned ? "pin.fill" : "pin")
-                }
-                Button(role: .destructive) { store.delete(note) } label: { Image(systemName: "trash") }
+                TextField("Title", text: $title).font(.system(size: 28, weight: .bold)).textFieldStyle(.plain)
+                Button { store.togglePin(note) } label: { Image(systemName: note.isPinned ? "pin.fill" : "pin") }.help("Pin note")
+                Menu {
+                    Button("Archive") { store.archive(note) }
+                    Button("Move to Recently Deleted", role: .destructive) { store.moveToTrash(note) }
+                } label: { Image(systemName: "ellipsis.circle") }
             }
-            TextEditor(text: $bodyText)
-                .font(.system(size: 15))
-                .scrollContentBackground(.hidden)
-                .onChange(of: title) { _ in persist() }
-                .onChange(of: bodyText) { _ in persist() }
             HStack {
-                Text("Autosaved locally")
-                Spacer()
+                TextField("Folder", text: $folder).textFieldStyle(.roundedBorder).frame(maxWidth: 180)
+                TextField("Tags, separated by commas", text: $tags).textFieldStyle(.roundedBorder)
+            }
+            Divider()
+            TextEditor(text: $bodyText).font(.system(size: 15)).scrollContentBackground(.hidden)
+            HStack {
+                Text("Autosaved locally"); Spacer()
                 Text("\(bodyText.split(whereSeparator: \.isWhitespace).count) words")
-            }
-            .font(.caption).foregroundStyle(.secondary)
-        }
-        .padding(24)
-        .onAppear { title = note.title; bodyText = note.body }
-        .onChange(of: note.id) { _ in title = note.title; bodyText = note.body }
+            }.font(.caption).foregroundStyle(.secondary)
+        }.padding(24)
+            .onAppear { loadDraft() }
+            .onChange(of: note.id) { _ in loadDraft() }
+            .onChange(of: title) { _ in persist() }
+            .onChange(of: bodyText) { _ in persist() }
+            .onChange(of: folder) { _ in persist() }
+            .onChange(of: tags) { _ in persist() }
     }
-
-    private func persist() { store.updateSelected(title: title, body: bodyText) }
+    private func loadDraft() { title = note.title; bodyText = note.body; folder = note.folder; tags = note.tags.joined(separator: ", ") }
+    private func persist() { store.update(note.id, title: title, body: bodyText, folder: folder, tags: tags) }
 }
 
 struct SettingsView: View {
+    @EnvironmentObject private var store: NoteStore
     var body: some View {
         Form {
             Section("Folio") {
                 Text("Folio for macOS")
-                Text("Local notes are stored in Application Support/Folio.")
-                    .foregroundStyle(.secondary)
+                Text("Local notes are stored in Application Support/Folio.").foregroundStyle(.secondary)
+                Text("\(store.notes.count) notes stored locally")
             }
-            Section("Coming modules") {
-                Text("Sync, Safe Folder, rich-text blocks, PDF, audio, drawing and AI modules are being built against the shared document contract.")
+            Section("Available in this build") {
+                Text("Folders, tags, full-text search, pinning, archive, recently deleted and autosave.")
             }
-        }
-        .padding(20)
-        .frame(width: 440)
+            Section("Still in development") {
+                Text("Cloud sync, end-to-end encryption, biometric Safe Folder, rich-text blocks, attachments, PDF annotation, audio capture and handwriting.")
+            }
+        }.padding(20).frame(width: 460)
     }
 }
