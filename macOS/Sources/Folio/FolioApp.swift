@@ -540,7 +540,16 @@ struct FolioRootView: View {
         NavigationSplitView {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("FOLIO").font(.system(size: 21, weight: .bold, design: .rounded))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("FOLIO")
+                            .font(.system(size: 21, weight: .bold, design: .rounded))
+                            .tracking(2.2)
+                            .foregroundStyle(Color(red: 0.73, green: 0.95, blue: 0.42))
+                        Text("PERSONAL KNOWLEDGE SYSTEM")
+                            .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                            .tracking(1.1)
+                            .foregroundStyle(Color(red: 1.0, green: 0.72, blue: 0.36))
+                    }
                     Spacer()
                     Button { store.createDailyNote() } label: { Image(systemName: "calendar") }
                         .help("Open or create today's Daily Note")
@@ -604,7 +613,10 @@ struct FolioRootView: View {
                                 if !note.tags.isEmpty { Text("· " + note.tags.joined(separator: ", ")) }
                                 Spacer(); Text(note.updatedAt, style: .date)
                             }.font(.caption2).foregroundStyle(.tertiary)
-                        }.tag(note.id).contextMenu {
+                        }
+                        .tag(note.id)
+                        .listRowBackground(Color.white.opacity(0.025))
+                        .contextMenu {
                             Button(note.isPinned ? "Unpin" : "Pin") { store.togglePin(note) }
                             Button("Duplicate") { store.duplicate(note) }
                             if note.isDeleted {

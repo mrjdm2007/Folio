@@ -56,7 +56,15 @@ fun FolioTheme(content: @Composable () -> Unit) {
         onSurfaceVariant = androidx.compose.ui.graphics.Color(0xFFADB7A8),
         outline = androidx.compose.ui.graphics.Color(0xFF465344)
     )
-    MaterialTheme(colorScheme = colors, content = content)
+    MaterialTheme(
+        colorScheme = colors,
+        shapes = Shapes(
+            small = RoundedCornerShape(9.dp),
+            medium = RoundedCornerShape(15.dp),
+            large = RoundedCornerShape(22.dp)
+        ),
+        content = content
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
