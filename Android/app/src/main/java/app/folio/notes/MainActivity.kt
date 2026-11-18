@@ -331,7 +331,25 @@ fun FolioScreen() {
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text("Markdown", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            TextButton(onClick = { showRenderedPreview = !showRenderedPreview }) { Text(if (showRenderedPreview) "Edit source" else "Preview") }
+                            Row {
+                                TextButton(onClick = {
+                                    val id = selectedId ?: return@TextButton
+                                    historyItems = runCatching {
+                                        val array = JSONArray(prefs.getString("history_$id", "[]") ?: "[]")
+                                        (0 until array.length()).map { index ->
+                                            val item = array.getJSONObject(index)
+                                            val tagArray = item.optJSONArray("tags") ?: JSONArray()
+                                            FolioNote(item.getString("id"), item.optString("title"), item.optString("body"),
+                                                item.optBoolean("isPinned"), item.optString("folder", "Notes"),
+                                                (0 until tagArray.length()).map { tagArray.optString(it) },
+                                                item.optBoolean("isArchived"), item.optBoolean("isDeleted"),
+                                                item.optLong("updatedAtMs"), item.optLong("createdAtMs"))
+                                        }
+                                    }.getOrDefault(emptyList())
+                                    historyNoteId = id
+                                }) { Text("History") }
+                                TextButton(onClick = { showRenderedPreview = !showRenderedPreview }) { Text(if (showRenderedPreview) "Edit source" else "Preview") }
+                            }
                         }
                         if (showRenderedPreview) {
                             androidx.compose.foundation.lazy.LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(8.dp)) {
@@ -388,6 +406,35 @@ fun FolioScreen() {
                 }
             }
         }
+    }
+    historyNoteId?.let { id ->
+        AlertDialog(
+            onDismissRequest = { historyNoteId = null },
+            title = { Text("Version history") },
+            text = {
+                if (historyItems.isEmpty()) Text("No previous versions have been saved yet.")
+                else Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                    historyItems.forEach { version ->
+                        TextButton(onClick = {
+                            persist(notes.map { if (it.id == id) version.copy(updatedAt = System.currentTimeMillis()) else it })
+                            if (selectedId == id) {
+                                editingTitle = version.title; editingBody = version.body
+                                editingFolder = version.folder; editingTags = version.tags.joinToString(", ")
+                            }
+                            historyNoteId = null
+                        }) {
+                            Column(Modifier.fillMaxWidth()) {
+                                Text(version.title.ifBlank { "Untitled Note" })
+                                Text(java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+                                    .format(java.util.Date(version.updatedAt)) + " · " + version.body.take(90),
+                                    style = MaterialTheme.typography.labelSmall, maxLines = 2)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { historyNoteId = null }) { Text("Close") } }
+        )
     }
     permanentDeleteId?.let { id ->
         AlertDialog(
