@@ -118,6 +118,8 @@ final class NoteStore: ObservableObject {
     private let fileURL: URL
     private let attachmentsURL: URL
     private let attachmentIndexURL: URL
+    private let historyURL: URL
+    @Published var revisionHistory: [String: [FolioNote]] = [:]
     @Published var attachments: [FolioAttachment] = []
     private var recoveredCorruptStore = false
 
@@ -128,6 +130,8 @@ final class NoteStore: ObservableObject {
         fileURL = directory.appendingPathComponent("notes.json")
         attachmentsURL = directory.appendingPathComponent("Attachments", isDirectory: true)
         attachmentIndexURL = directory.appendingPathComponent("attachments.json")
+        historyURL = directory.appendingPathComponent("history.json")
+        if let data = try? Data(contentsOf: historyURL), let decoded = try? JSONDecoder().decode([String: [FolioNote]].self, from: data) { revisionHistory = decoded }
         try? FileManager.default.createDirectory(at: attachmentsURL, withIntermediateDirectories: true)
         loadAttachments()
         load()
@@ -165,6 +169,12 @@ final class NoteStore: ObservableObject {
     }
     func update(_ id: UUID, title: String, body: String, folder: String, tags: String) {
         guard let i = notes.firstIndex(where: { $0.id == id }) else { return }
+        if notes[i].title != title || notes[i].body != body {
+            let key = id.uuidString
+            revisionHistory[key, default: []].insert(notes[i], at: 0)
+            if revisionHistory[key, default: []].count > 20 { revisionHistory[key] = Array(revisionHistory[key, default: []].prefix(20)) }
+            if let historyData = try? JSONEncoder().encode(revisionHistory) { try? historyData.write(to: historyURL, options: .atomic) }
+        }
         notes[i].title = title; notes[i].body = body
         notes[i].folder = folder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Notes" : folder
         notes[i].tags = tags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
