@@ -1,5 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.INTERNET" />
     <application android:theme="@android:style/Theme.Material.Light.NoActionBar" android:label="Folio" android:allowBackup="false" android:supportsRtl="true">
         <receiver android:name=".FolioWidgetProvider" android:exported="true">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
