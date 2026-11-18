@@ -320,16 +320,16 @@ final class NoteStore: ObservableObject {
             content = "# Daily Journal\n\n**Date:** \(Date.now.formatted(date: .abbreviated, time: .omitted))\n\n## Today\n\n## Highlights\n- \n\n## To remember\n- "
         case "Research Notes":
             title = "Research Notes"
-            content = "# Research question\\n\\n**Source / URL:**\\n**Date accessed:** \\(Date.now.formatted(date: .abbreviated, time: .omitted))\\n\\n## Summary\\n\\n## Evidence\\n- \\n\\n## Open questions\\n- [ ] \\n\\n## References\\n- "
+            content = "# Research question\n\n**Source / URL:**\n**Date accessed:** \(Date.now.formatted(date: .abbreviated, time: .omitted))\n\n## Summary\n\n## Evidence\n- \n\n## Open questions\n- [ ] \n\n## References\n- "
         case "Reading List":
             title = "Reading List"
-            content = "# Reading List\\n\\n## To read\\n- [ ] Title — Author — Link\\n\\n## Reading notes\\n\\n## Finished\\n- [x] "
+            content = "# Reading List\n\n## To read\n- [ ] Title — Author — Link\n\n## Reading notes\n\n## Finished\n- [x] "
         case "Weekly Planner":
             title = "Weekly Planner"
-            content = "# Weekly Plan · \\(Date.now.formatted(date: .abbreviated, time: .omitted))\\n\\n## Priorities\\n1. \\n2. \\n3. \\n\\n## Monday\\n- [ ] \\n\\n## Tuesday\\n- [ ] \\n\\n## Wednesday\\n- [ ] \\n\\n## Thursday\\n- [ ] \\n\\n## Friday\\n- [ ] \\n\\n## Weekend\\n- [ ] \\n\\n## Notes / review"
+            content = "# Weekly Plan · \(Date.now.formatted(date: .abbreviated, time: .omitted))\n\n## Priorities\n1. \n2. \n3. \n\n## Monday\n- [ ] \n\n## Tuesday\n- [ ] \n\n## Wednesday\n- [ ] \n\n## Thursday\n- [ ] \n\n## Friday\n- [ ] \n\n## Weekend\n- [ ] \n\n## Notes / review"
         case "Lecture Revision":
             title = "Lecture Revision"
-            content = "# Lecture Revision\\n\\n**Subject:** \\n**Topic:** \\n**Exam date:** \\n\\n## Core concepts\\n- \\n\\n## Formulas / definitions\\n- \\n\\n## Worked examples\\n\\n## Questions to practise\\n- [ ] \\n\\n## Confidence check\\n- [ ] Revisit weak areas"
+            content = "# Lecture Revision\n\n**Subject:** \n**Topic:** \n**Exam date:** \n\n## Core concepts\n- \n\n## Formulas / definitions\n- \n\n## Worked examples\n\n## Questions to practise\n- [ ] \n\n## Confidence check\n- [ ] Revisit weak areas"
         default:
             title = "Project Brief"
             content = "# Project Brief\n\n## Objective\n\n## Scope\n\n## Milestones\n- [ ] \n\n## Risks\n\n## Next steps"
