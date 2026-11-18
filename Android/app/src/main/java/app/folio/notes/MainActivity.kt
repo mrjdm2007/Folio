@@ -245,6 +245,8 @@ fun FolioScreen() {
                         OutlinedTextField(value = editingBody, onValueChange = { value ->
                             editingBody = value; updateSelected { it.copy(body = value) }
                         }, modifier = Modifier.weight(1f).fillMaxWidth(), placeholder = { Text("Write in Markdown…") })
+                        Text(editingBody.split(Regex("\\s+")).count { it.isNotBlank() }.toString() + " words · " + editingBody.length + " characters",
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         TextButton(onClick = {
                             val note = notes.firstOrNull { it.id == selectedId } ?: return@TextButton
                             val send = Intent(Intent.ACTION_SEND).apply {
