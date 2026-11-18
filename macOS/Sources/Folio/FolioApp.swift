@@ -180,6 +180,15 @@ final class NoteStore: ObservableObject {
         notes[i].tags = tags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         notes[i].updatedAt = .now; save()
     }
+    func restoreRevision(_ revision: FolioNote, for id: UUID) {
+        guard let index = notes.firstIndex(where: { $0.id == id }) else { return }
+        notes[index].title = revision.title
+        notes[index].body = revision.body
+        notes[index].folder = revision.folder
+        notes[index].tags = revision.tags
+        notes[index].updatedAt = .now
+        save()
+    }
     func togglePin(_ note: FolioNote) {
         guard let i = notes.firstIndex(where: { $0.id == note.id }) else { return }
         notes[i].isPinned.toggle(); notes[i].updatedAt = .now; save()
@@ -435,6 +444,18 @@ struct NoteEditor: View {
                 Menu {
                     Button("Archive") { store.archive(note) }
                     Button("Move to Recently Deleted", role: .destructive) { store.moveToTrash(note) }
+                    if let versions = store.revisionHistory[note.id.uuidString], !versions.isEmpty {
+                        Divider()
+                        Menu("Version History") {
+                            ForEach(versions) { version in
+                                Button(version.updatedAt.formatted(date: .abbreviated, time: .shortened)) {
+                                    store.restoreRevision(version, for: note.id)
+                                    title = version.title; bodyText = version.body
+                                    folder = version.folder; tags = version.tags.joined(separator: ", ")
+                                }
+                            }
+                        }
+                    }
                 } label: { Image(systemName: "ellipsis.circle") }
             }
             HStack {
