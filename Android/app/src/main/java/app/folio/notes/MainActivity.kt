@@ -270,6 +270,7 @@ fun FolioScreen() {
             "Archive" -> note.archived && !note.deleted
             "Recently Deleted" -> note.deleted
             "Pinned" -> note.pinned && !note.archived && !note.deleted
+            "Tasks" -> !note.archived && !note.deleted && Regex("(?m)^\\s*- \\[ \\]").containsMatchIn(note.body)
             "All Notes" -> !note.archived && !note.deleted
             else -> note.folder.trim().ifBlank { "Notes" } == section && !note.archived && !note.deleted
         }
@@ -278,6 +279,7 @@ fun FolioScreen() {
     }.let { matches ->
         val pinnedFirst = matches.sortedByDescending { it.pinned }
         when (sortMode) {
+            "Recently created" -> pinnedFirst.sortedByDescending { it.createdAt }
             "Oldest first" -> pinnedFirst.sortedBy { it.updatedAt }
             "Title A–Z" -> pinnedFirst.sortedBy { it.title.lowercase() }
             "Title Z–A" -> pinnedFirst.sortedByDescending { it.title.lowercase() }
@@ -363,7 +365,7 @@ fun FolioScreen() {
                 Box {
                     TextButton(onClick = { showSortMenu = true }) { Text("Sort: $sortMode") }
                     DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
-                        listOf("Recently updated", "Oldest first", "Title A–Z", "Title Z–A").forEach { option ->
+                        listOf("Recently updated", "Recently created", "Oldest first", "Title A–Z", "Title Z–A").forEach { option ->
                             DropdownMenuItem(text = { Text(option) }, onClick = { sortMode = option; showSortMenu = false })
                         }
                     }
@@ -371,7 +373,7 @@ fun FolioScreen() {
             }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("All Notes", "Pinned", "Archive", "Recently Deleted").forEach { name ->
+                listOf("All Notes", "Pinned", "Tasks", "Archive", "Recently Deleted").forEach { name ->
                     FilterChip(selected = section == name, onClick = { section = name }, label = { Text(name) })
                 }
             }

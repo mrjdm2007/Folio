@@ -238,6 +238,7 @@ final class NoteStore: ObservableObject {
             let location: Bool
             switch selectedFolder {
             case "Pinned": location = note.isPinned && !note.isArchived && !note.isDeleted
+            case "Tasks": location = !note.isArchived && !note.isDeleted && note.body.range(of: #"(?m)^\\s*- \\[ \\]"#, options: .regularExpression) != nil
             case "Archive": location = note.isArchived && !note.isDeleted
             case "Recently Deleted": location = note.isDeleted
             case "All Notes": location = !note.isArchived && !note.isDeleted
@@ -250,6 +251,7 @@ final class NoteStore: ObservableObject {
         }.sorted { left, right in
             if left.isPinned != right.isPinned { return left.isPinned }
             switch sortMode {
+            case "Recently created": return left.createdAt > right.createdAt
             case "Oldest first": return left.updatedAt < right.updatedAt
             case "Title A–Z": return left.title.localizedStandardCompare(right.title) == .orderedAscending
             case "Title Z–A": return left.title.localizedStandardCompare(right.title) == .orderedDescending
@@ -450,7 +452,7 @@ final class NoteStore: ObservableObject {
 
 struct FolioRootView: View {
     @EnvironmentObject private var store: NoteStore
-    private var sidebarItems: [String] { ["All Notes", "Pinned"] + store.folders + ["Archive", "Recently Deleted"] }
+    private var sidebarItems: [String] { ["All Notes", "Pinned", "Tasks"] + store.folders + ["Archive", "Recently Deleted"] }
     var body: some View {
         NavigationSplitView {
             VStack(alignment: .leading, spacing: 10) {
@@ -481,7 +483,7 @@ struct FolioRootView: View {
                     Text("\(store.visibleNotes.count) notes").font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     Menu {
-                        ForEach(["Recently updated", "Oldest first", "Title A–Z", "Title Z–A"], id: \.self) { mode in
+                        ForEach(["Recently updated", "Recently created", "Oldest first", "Title A–Z", "Title Z–A"], id: \.self) { mode in
                             Button { store.sortMode = mode } label: {
                                 if store.sortMode == mode { Label(mode, systemImage: "checkmark") } else { Text(mode) }
                             }
@@ -525,7 +527,7 @@ struct FolioRootView: View {
             .tint(Color(red: 0.725, green: 0.953, blue: 0.416))
     }
     private func icon(for item: String) -> String {
-        switch item { case "All Notes": return "note.text"; case "Archive": return "archivebox"; case "Recently Deleted": return "trash"; default: return "folder" }
+        switch item { case "All Notes": return "note.text"; case "Tasks": return "checklist"; case "Archive": return "archivebox"; case "Recently Deleted": return "trash"; default: return "folder" }
     }
 }
 
