@@ -338,6 +338,23 @@ final class NoteStore: ObservableObject {
         copy.updatedAt = .now
         notes.insert(copy, at: 0); selection = copy.id; selectedFolder = "All Notes"; save()
     }
+    func createDailyNote() {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let date = formatter.string(from: .now)
+        let title = "Daily · \(date)"
+        if let existing = notes.first(where: {
+            $0.title == title && $0.folder == "Daily Notes" && !$0.isDeleted && !$0.isArchived
+        }) {
+            selection = existing.id
+            selectedFolder = "Daily Notes"
+            return
+        }
+        let body = "# \(title)\n\n## Priorities\n- [ ] \n\n## Notes\n\n## Tasks\n- [ ] "
+        let note = FolioNote(title: title, body: body, folder: "Daily Notes")
+        notes.insert(note, at: 0); selection = note.id; selectedFolder = "Daily Notes"; save()
+    }
+
     func createTemplate(_ kind: String) {
         let title: String
         let content: String
@@ -525,7 +542,10 @@ struct FolioRootView: View {
                 HStack {
                     Text("FOLIO").font(.system(size: 21, weight: .bold, design: .rounded))
                     Spacer()
+                    Button { store.createDailyNote() } label: { Image(systemName: "calendar") }
+                        .help("Open or create today's Daily Note")
                     Menu {
+                        Button("Daily Note · Today") { store.createDailyNote() }
                         Button("Blank Note") { store.createNote() }
                         Divider()
                         ForEach(["Class Notes", "Meeting", "Daily Journal", "Project Brief", "Research Notes", "Reading List", "Weekly Planner", "Lecture Revision"], id: \.self) { kind in
@@ -708,7 +728,8 @@ struct NoteEditor: View {
             HStack {
                 Text("Autosaved locally"); Spacer()
                 if !tasks.isEmpty { Text("\(completedTasks)/\(tasks.count) tasks · ") }
-                Text("\(bodyText.split(whereSeparator: \.isWhitespace).count) words")
+                let wordCount = bodyText.split(whereSeparator: \.isWhitespace).count
+                Text("\(wordCount) words · \(wordCount == 0 ? 0 : (wordCount + 199) / 200) min read")
             }.font(.caption).foregroundStyle(.secondary)
             if !tasks.isEmpty {
                 ProgressView(value: Double(completedTasks), total: Double(tasks.count))

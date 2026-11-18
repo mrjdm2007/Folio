@@ -334,6 +334,24 @@ fun FolioScreen() {
         persist(listOf(note) + notes); selectedId = note.id
         editingTitle = note.title; editingBody = note.body; editingFolder = "Notes"; editingTags = ""; section = "All Notes"
     }
+    fun createDailyNote() {
+        val date = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+        val title = "Daily · $date"
+        val existing = notes.firstOrNull { it.title == title && it.folder == "Daily Notes" && !it.deleted && !it.archived }
+        if (existing != null) {
+            selectedId = existing.id; editingTitle = existing.title; editingBody = existing.body
+            editingFolder = existing.folder; editingTags = existing.tags.joinToString(", ")
+            attachedDocs = decodeDocuments(prefs.getString("documents_${existing.id}", "[]") ?: "[]")
+            section = "Daily Notes"
+            return
+        }
+        val note = FolioNote(UUID.randomUUID().toString(), title,
+            "# $title\n\n## Priorities\n- [ ] \n\n## Notes\n\n## Tasks\n- [ ] ",
+            folder = "Daily Notes")
+        persist(listOf(note) + notes); selectedId = note.id
+        editingTitle = note.title; editingBody = note.body; editingFolder = note.folder
+        editingTags = ""; section = "Daily Notes"
+    }
     val folders = notes.asSequence().filter { !it.deleted && !it.archived }
         .map { it.folder.trim().ifBlank { "Notes" } }.filterNot { it in setOf("All Notes", "Archive", "Recently Deleted") }.distinct().sorted().toList()
     val filtered = notes.filter { note ->
@@ -375,6 +393,7 @@ fun FolioScreen() {
                 var showTemplates by remember { mutableStateOf(false) }
                 IconButton(onClick = { showTemplates = true }) { Icon(Icons.Default.Add, "New note or template") }
                 DropdownMenu(expanded = showTemplates, onDismissRequest = { showTemplates = false }) {
+                    DropdownMenuItem(text = { Text("Daily note · today") }, onClick = { showTemplates = false; createDailyNote() })
                     DropdownMenuItem(text = { Text("Blank note") }, onClick = { showTemplates = false; newNote() })
                     listOf("Class Notes", "Meeting", "Daily Journal", "Project Brief", "Research Notes", "Reading List", "Weekly Planner", "Lecture Revision").forEach { kind ->
                         DropdownMenuItem(text = { Text(kind) }, onClick = { showTemplates = false; createTemplate(kind) })
@@ -584,7 +603,8 @@ fun FolioScreen() {
                         val checklist = Regex("(?m)^\\s*- \\[([ xX])\\]").findAll(editingBody).toList()
                         val completedTasks = checklist.count { it.groupValues[1].equals("x", true) }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            Text("$wordCount words · ${editingBody.length} characters",
+                            val readingMinutes = if (wordCount == 0) 0 else (wordCount + 199) / 200
+                            Text("$wordCount words · ${editingBody.length} characters · ${readingMinutes} min read",
                                 style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             if (checklist.isNotEmpty()) Text("$completedTasks / ${checklist.size} tasks",
                                 style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
