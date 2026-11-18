@@ -281,8 +281,25 @@ fun FolioScreen() {
                                 editingBody = value; updateSelected { it.copy(body = value) }
                             }, modifier = Modifier.weight(1f).fillMaxWidth(), placeholder = { Text("Write in Markdown…") })
                         }
-                        Text(editingBody.split(Regex("\\s+")).count { it.isNotBlank() }.toString() + " words · " + editingBody.length + " characters",
-                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Documents · ${attachedDocs.size}", style = MaterialTheme.typography.labelSmall)
+                            TextButton(onClick = { attachmentTargetId = selectedId; importAttachment.launch(arrayOf("application/pdf", "image/*", "text/*", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")) }) { Text("Attach file") }
+                        }
+                        attachedDocs.forEach { doc ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                TextButton(onClick = {
+                                    runCatching {
+                                        val uri = Uri.parse(doc.uri)
+                                        context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, context.contentResolver.getType(uri) ?: "*/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                                    }.onFailure { backupStatus = "No app can open this document." }
+                                }) { Text(doc.name, maxLines = 1) }
+                                TextButton(onClick = {
+                                    val next = attachedDocs.filterNot { it.uri == doc.uri }; attachedDocs = next
+                                    selectedId?.let { prefs.edit().putString("documents_${it}", encodeDocuments(next)).apply() }
+                                }) { Text("Remove") }
+                            }
+                        }
+                        Text(editingBody.split(Regex("\\\\s+")).count { it.isNotBlank() }.toString() + " words · " + editingBody.length + " characters",
                         TextButton(onClick = {
                             val note = notes.firstOrNull { it.id == selectedId } ?: return@TextButton
                             val send = Intent(Intent.ACTION_SEND).apply {
