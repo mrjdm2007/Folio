@@ -13,6 +13,29 @@ final class FolioPeerSyncService {
     private let secret: () -> String
     private let exchange: ([PortableFolioNote]) throws -> [PortableFolioNote]
 
+    static func loadPairingSecret() -> String {
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "app.folio.notes.peer-sync",
+            kSecAttrAccount as String: "pairing-secret", kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return "" }
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    static func savePairingSecret(_ secret: String) throws {
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "app.folio.notes.peer-sync",
+            kSecAttrAccount as String: "pairing-secret"]
+        SecItemDelete(query as CFDictionary)
+        var item = query
+        item[kSecValueData as String] = Data(secret.utf8)
+        item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        let status = SecItemAdd(item as CFDictionary, nil)
+        guard status == errSecSuccess else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(status)) }
+    }
+
     init(secret: @escaping () -> String,
          exchange: @escaping ([PortableFolioNote]) throws -> [PortableFolioNote]) {
         self.secret = secret
