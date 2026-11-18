@@ -240,7 +240,7 @@ final class NoteStore: ObservableObject {
             // Never silently replace an unreadable library with a new empty one.
             let stamp = ISO8601DateFormatter().string(from: .now).replacingOccurrences(of: ":", with: "-")
             let recoveryURL = fileURL.deletingLastPathComponent()
-                .appendingPathComponent("notes-corrupt-\\(stamp).json")
+                .appendingPathComponent("notes-corrupt-\(stamp).json")
             do {
                 try FileManager.default.moveItem(at: fileURL, to: recoveryURL)
                 recoveredCorruptStore = true
@@ -256,7 +256,7 @@ final class NoteStore: ObservableObject {
             try data.write(to: fileURL, options: .atomic)
         } catch {
             // Keep the in-memory notes; a later edit or relaunch must not imply a successful save.
-            assertionFailure("Folio could not save its local note store: \\(error.localizedDescription)")
+            assertionFailure("Folio could not save its local note store: \(error.localizedDescription)")
         }
     }
 }
