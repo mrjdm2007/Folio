@@ -228,7 +228,8 @@ fun FolioScreen() {
                                 },
                                 modifier = Modifier.fillMaxWidth().clickable {
                                     selectedId = note.id; editingTitle = note.title; editingBody = note.body
-                                    editingFolder = note.folder; editingTags = note.tags.joinToString(", ")\n                                    attachedDocs = decodeDocuments(prefs.getString("documents_${note.id}", "[]") ?: "[]")
+                                    editingFolder = note.folder; editingTags = note.tags.joinToString(", ")
+                                    attachedDocs = decodeDocuments(prefs.getString("documents_${note.id}", "[]") ?: "[]")
                                 }
                             )
                             HorizontalDivider()
