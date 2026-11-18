@@ -26,3 +26,14 @@ Enable RLS on every user table. Clients must use publishable/anon credentials on
 ## Before release
 
 Perform threat modelling, dependency review, key lifecycle review, backup/restore testing, offline and conflict testing, and an independent security review. The present repository is a development foundation, not a security certification.
+
+
+## Cloud-sync status and access model
+
+The Supabase schema is not a public notes feed. The encrypted sync tables have row-level security policies requiring `auth.uid() = user_id`; the attachment bucket is private and object paths are scoped to the authenticated user's UUID. The hardening migration `20261118000300_folio_sync_write_hardening.sql` revokes direct authenticated writes to note envelopes and immutable revision rows. Note writes go through the revision-checked RPC, which derives the owner from `auth.uid()`, uses a fixed search path, and validates the SHA-256 hash of ciphertext plus nonce.
+
+The Supabase publishable/anon key is designed to be present in client applications; it is not an authorization secret. RLS and user authentication enforce access. A service-role/secret key bypasses RLS and must never be shipped in an app, committed to Git, or shared with clients.
+
+**Current limitation:** the macOS and Android clients do not yet authenticate to Supabase, encrypt their local note data for sync, or call the RPC. Local stores and JSON backups are plaintext. Therefore cloud sync is currently inactive, and this repository must not be described as having production-ready end-to-end encrypted sync.
+
+Before production use, test with two independent accounts: anonymous access must fail; account A must not read, mutate or download account B's rows/objects; direct table writes must fail; and only the authenticated RPC may create new note revisions. Also test password reset/recovery, key rotation, offline replay, attachment path traversal, and deletion propagation.
