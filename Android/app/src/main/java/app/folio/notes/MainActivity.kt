@@ -8,6 +8,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -373,44 +376,27 @@ fun FolioScreen() {
                 if (!compactLayout || selectedId == null) Column(Modifier.weight(if (compactLayout) 1f else 0.9f)) {
                     LazyColumn {
                         items(filtered, key = { it.id }) { note ->
-                            ListItem(
-                                headlineContent = { Text(note.title.ifBlank { "Untitled Note" }) },
-                                supportingContent = {
-                                    Column {
-                                        Text(note.body.ifBlank { "No additional text" }, maxLines = 2)
-                                        Text(note.folder + if (note.tags.isEmpty()) "" else " · " + note.tags.joinToString(", "),
-                                            style = MaterialTheme.typography.labelSmall)
-                                    }
-                                },
-                                trailingContent = {
-                                    Row {
-                                        IconButton(onClick = { persist(notes.map { if (it.id == note.id) it.copy(pinned = !it.pinned, updatedAt = System.currentTimeMillis()) else it }) }) {
-                                            Icon(Icons.Default.PushPin, if (note.pinned) "Unpin" else "Pin")
-                                        }
-                                        if (!note.deleted && !note.archived) {
-                                            TextButton(onClick = { duplicate(note) }) { Text("Copy") }
-                                            IconButton(onClick = {
-                                                persist(notes.map { if (it.id == note.id) it.copy(archived = true, updatedAt = System.currentTimeMillis()) else it })
-                                                if (selectedId == note.id) selectedId = null
-                                            }) { Icon(Icons.Default.Archive, "Archive") }
-                                            IconButton(onClick = {
-                                                persist(notes.map { if (it.id == note.id) it.copy(deleted = true, archived = false, updatedAt = System.currentTimeMillis()) else it })
-                                                if (selectedId == note.id) selectedId = null
-                                            }) { Icon(Icons.Default.Delete, "Move to trash") }
-                                        } else if (note.deleted) {
-                                            TextButton(onClick = { persist(notes.map { if (it.id == note.id) it.copy(deleted = false, archived = false, updatedAt = System.currentTimeMillis()) else it }) }) { Text("Restore") }
-                                            TextButton(onClick = { permanentDeleteId = note.id }) { Text("Delete permanently") }
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth().clickable {
+                            FolioNoteRow(
+                                note = note, selected = selectedId == note.id,
+                                onSelect = {
                                     selectedId = note.id; editingTitle = note.title; editingBody = note.body
                                     editingFolder = note.folder; editingTags = note.tags.joinToString(", ")
                                     attachedDocs = decodeDocuments(prefs.getString("documents_${note.id}", "[]") ?: "[]")
-                                }
+                                },
+                                onPin = { persist(notes.map { if (it.id == note.id) it.copy(pinned = !it.pinned, updatedAt = System.currentTimeMillis()) else it }) },
+                                onDuplicate = { duplicate(note) },
+                                onArchive = {
+                                    persist(notes.map { if (it.id == note.id) it.copy(archived = true, updatedAt = System.currentTimeMillis()) else it })
+                                    if (selectedId == note.id) selectedId = null
+                                },
+                                onTrash = {
+                                    persist(notes.map { if (it.id == note.id) it.copy(deleted = true, archived = false, updatedAt = System.currentTimeMillis()) else it })
+                                    if (selectedId == note.id) selectedId = null
+                                },
+                                onRestore = { persist(notes.map { if (it.id == note.id) it.copy(deleted = false, archived = false, updatedAt = System.currentTimeMillis()) else it }) },
+                                onDelete = { permanentDeleteId = note.id }
                             )
-                            HorizontalDivider()
-                        }
+                            Spacer(Modifier.height(5.dp))                        }
                     }
                 }
                 if (!compactLayout) Spacer(Modifier.width(10.dp))
@@ -561,6 +547,54 @@ fun FolioScreen() {
                 TextButton(onClick = { permanentDeleteId = null }) { Text("Cancel") }
             }
         )
+    }
+}
+@Composable
+private fun FolioNoteRow(
+    note: FolioNote, selected: Boolean, onSelect: () -> Unit, onPin: () -> Unit,
+    onDuplicate: () -> Unit, onArchive: () -> Unit, onTrash: () -> Unit,
+    onRestore: () -> Unit, onDelete: () -> Unit
+) {
+    var expanded by remember(note.id) { mutableStateOf(false) }
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onSelect),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface),
+        border = if (selected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)) else null
+    ) {
+        Row(Modifier.fillMaxWidth().padding(start = 12.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Box(Modifier.width(4.dp).height(48.dp).background(
+                if (note.pinned) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
+                RoundedCornerShape(4.dp)))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text(note.title.ifBlank { "Untitled Note" }, style = MaterialTheme.typography.titleMedium, maxLines = 1, modifier = Modifier.weight(1f))
+                    if (note.pinned) Icon(Icons.Default.PushPin, contentDescription = "Pinned", tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(15.dp))
+                }
+                Text(note.body.lineSequence().firstOrNull { it.isNotBlank() } ?: "No additional text",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                Text(note.folder + if (note.tags.isEmpty()) "" else "  ·  " + note.tags.take(3).joinToString("  "),
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary, maxLines = 1)
+            }
+            Box {
+                IconButton(onClick = { expanded = true }) { Icon(Icons.Default.MoreVert, contentDescription = "Note actions") }
+                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    DropdownMenuItem(text = { Text(if (note.pinned) "Unpin note" else "Pin note") }, onClick = { expanded = false; onPin() })
+                    DropdownMenuItem(text = { Text("Duplicate") }, onClick = { expanded = false; onDuplicate() })
+                    if (note.deleted) {
+                        DropdownMenuItem(text = { Text("Restore") }, onClick = { expanded = false; onRestore() })
+                        DropdownMenuItem(text = { Text("Delete permanently", color = MaterialTheme.colorScheme.error) }, onClick = { expanded = false; onDelete() })
+                    } else if (!note.archived) {
+                        DropdownMenuItem(text = { Text("Archive") }, onClick = { expanded = false; onArchive() })
+                        DropdownMenuItem(text = { Text("Move to trash") }, onClick = { expanded = false; onTrash() })
+                    } else {
+                        DropdownMenuItem(text = { Text("Move to notes") }, onClick = { expanded = false; onRestore() })
+                    }
+                }
+            }
+        }
     }
 }
 private fun appendRevision(prefs: android.content.SharedPreferences, note: FolioNote) {
