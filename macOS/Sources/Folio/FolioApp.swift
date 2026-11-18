@@ -1,6 +1,7 @@
 import SwiftUI
 import Combine
 import UniformTypeIdentifiers
+import AppKit
 
 @main
 struct FolioApp: App {
@@ -60,7 +61,7 @@ struct FolioBackupDocument: FileDocument {
         FileWrapper(regularFileWithContents: data)
     }
 }
-struct FolioNote: Identifiable, Codable, Equatable {
+struct FolioAttachment: Identifiable, Codable, Equatable {\n    var id: UUID\n    var noteID: UUID\n    var name: String\n    var storedName: String\n    var contentType: String\n}\n\nstruct FolioNote: Identifiable, Codable, Equatable {
     var id: UUID = UUID()
     var title: String
     var body: String
@@ -106,6 +107,9 @@ final class NoteStore: ObservableObject {
     @Published var query = ""
     @Published var selectedFolder = "All Notes"
     private let fileURL: URL
+    private let attachmentsURL: URL
+    private let attachmentIndexURL: URL
+    @Published var attachments: [FolioAttachment] = []
     private var recoveredCorruptStore = false
 
     init() {
@@ -113,6 +117,10 @@ final class NoteStore: ObservableObject {
         let directory = base.appendingPathComponent("Folio", isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         fileURL = directory.appendingPathComponent("notes.json")
+        attachmentsURL = directory.appendingPathComponent("Attachments", isDirectory: true)
+        attachmentIndexURL = directory.appendingPathComponent("attachments.json")
+        try? FileManager.default.createDirectory(at: attachmentsURL, withIntermediateDirectories: true)
+        loadAttachments()
         load()
         if notes.isEmpty && !recoveredCorruptStore { createNote(title: "Welcome to Folio") }
     }
@@ -198,6 +206,36 @@ final class NoteStore: ObservableObject {
     }
     func permanentlyDelete(_ note: FolioNote) {
         notes.removeAll { $0.id == note.id }; if selection == note.id { selection = nil }; save()
+    }
+    func addAttachment(_ source: URL, to noteID: UUID) throws {
+        let access = source.startAccessingSecurityScopedResource()
+        defer { if access { source.stopAccessingSecurityScopedResource() } }
+        let id = UUID()
+        let ext = source.pathExtension
+        let storedName = id.uuidString + (ext.isEmpty ? "" : "." + ext)
+        let destination = attachmentsURL.appendingPathComponent(storedName)
+        try FileManager.default.copyItem(at: source, to: destination)
+        let item = FolioAttachment(id: id, noteID: noteID, name: source.lastPathComponent,
+                                   storedName: storedName, contentType: UTType(filenameExtension: ext)?.preferredMIMEType ?? "application/octet-stream")
+        attachments.append(item)
+        saveAttachments()
+    }
+    func removeAttachment(_ item: FolioAttachment) {
+        attachments.removeAll { $0.id == item.id }
+        try? FileManager.default.removeItem(at: attachmentsURL.appendingPathComponent(item.storedName))
+        saveAttachments()
+    }
+    func attachmentURL(_ item: FolioAttachment) -> URL {
+        attachmentsURL.appendingPathComponent(item.storedName)
+    }
+    private func loadAttachments() {
+        guard let data = try? Data(contentsOf: attachmentIndexURL),
+              let values = try? JSONDecoder().decode([FolioAttachment].self, from: data) else { return }
+        attachments = values.filter { FileManager.default.fileExists(atPath: attachmentsURL.appendingPathComponent($0.storedName).path) }
+    }
+    private func saveAttachments() {
+        guard let data = try? JSONEncoder().encode(attachments) else { return }
+        try? data.write(to: attachmentIndexURL, options: .atomic)
     }
     func makeBackup() -> FolioBackupDocument {
         let encoder = JSONEncoder()
@@ -396,7 +434,7 @@ struct NoteEditor: View {
                 Text("\(bodyText.split(whereSeparator: \.isWhitespace).count) words")
             }.font(.caption).foregroundStyle(.secondary)
         }.padding(24)
-            .onAppear { loadDraft() }
+            .fileImporter(isPresented: $showingAttachmentPicker, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in\n                do { for url in try result.get() { try store.addAttachment(url, to: note.id) }; attachmentMessage = "Documents attached." }\n                catch { attachmentMessage = error.localizedDescription }\n            }\n            .onAppear { loadDraft() }
             .onChange(of: note.id) { _ in loadDraft() }
             .onChange(of: title) { _ in persist() }
             .onChange(of: bodyText) { _ in persist() }
