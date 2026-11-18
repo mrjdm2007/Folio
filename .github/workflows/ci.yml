@@ -8,9 +8,9 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: folio-${{ github.workflow }}-${{ github.ref }}
-  # Do not cancel platform builds when follow-up commits arrive.
-  cancel-in-progress: false
+  group: folio-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Only build the newest commit for a PR; stale queued runs must not block it.
+  cancel-in-progress: true
 jobs:
   macos-build:
     runs-on: macos-15
