@@ -431,7 +431,7 @@ fun FolioScreen() {
                     }
                     Column(Modifier.weight(1f)) {
                         Text("OPEN TASKS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text((dashboardOpenTasks - dashboardCompletedTasks).coerceAtLeast(0).toString(),
+                        Text(dashboardOpenTasks.toString(),
                             style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
                         Text("$dashboardCompletedTasks completed", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -633,7 +633,8 @@ fun FolioScreen() {
                                                 item.optBoolean("isPinned"), item.optString("folder", "Notes"),
                                                 (0 until tagArray.length()).map { tagArray.optString(it) },
                                                 item.optBoolean("isArchived"), item.optBoolean("isDeleted"),
-                                                item.optLong("updatedAtMs"), item.optLong("createdAtMs"))
+                                                item.optLong("updatedAtMs"), item.optLong("createdAtMs"),
+                                                item.optString("priority", "Normal").takeIf { it in setOf("Low", "Normal", "High", "Urgent") } ?: "Normal")
                                         }
                                     }.getOrDefault(emptyList())
                                     historyNoteId = id
@@ -745,7 +746,7 @@ fun FolioScreen() {
                             persist(notes.map { if (it.id == id) version.copy(updatedAt = System.currentTimeMillis()) else it })
                             if (selectedId == id) {
                                 editingTitle = version.title; editingBody = version.body
-                                editingFolder = version.folder; editingTags = version.tags.joinToString(", ")
+                                editingFolder = version.folder; editingTags = version.tags.joinToString(", "); editingPriority = version.priority
                             }
                             historyNoteId = null
                         }) {
