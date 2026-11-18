@@ -48,6 +48,7 @@ fun FolioScreen() {
         prefs.edit().putString("notes_recovery_backup", corrupt).apply()
     }) }
     var selectedId by remember { mutableStateOf<String?>(null) }
+    var permanentDeleteId by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
     var section by remember { mutableStateOf("All Notes") }
     var editingTitle by remember { mutableStateOf("") }
@@ -189,7 +190,8 @@ fun FolioScreen() {
                                                 if (selectedId == note.id) selectedId = null
                                             }) { Icon(Icons.Default.Delete, "Move to trash") }
                                         } else if (note.deleted) {
-                                            TextButton(onClick = { persist(notes.map { if (it.id == note.id) it.copy(deleted = false, archived = false) else it }) }) { Text("Restore") }
+                                            TextButton(onClick = { persist(notes.map { if (it.id == note.id) it.copy(deleted = false, archived = false, updatedAt = System.currentTimeMillis()) else it }) }) { Text("Restore") }
+                                            TextButton(onClick = { permanentDeleteId = note.id }) { Text("Delete permanently") }
                                         }
                                     }
                                 },
@@ -247,6 +249,23 @@ fun FolioScreen() {
                 }
             }
         }
+    }
+    permanentDeleteId?.let { id ->
+        AlertDialog(
+            onDismissRequest = { permanentDeleteId = null },
+            title = { Text("Delete note permanently?") },
+            text = { Text("This removes the note from this device and cannot be undone. Make sure you have a backup if you need it.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    persist(notes.filterNot { it.id == id })
+                    if (selectedId == id) selectedId = null
+                    permanentDeleteId = null
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { permanentDeleteId = null }) { Text("Cancel") }
+            }
+        )
     }
 }
 private data class FolioNote(
