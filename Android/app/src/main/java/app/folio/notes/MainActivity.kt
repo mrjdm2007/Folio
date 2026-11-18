@@ -43,7 +43,10 @@ fun FolioTheme(content: @Composable () -> Unit) {
 fun FolioScreen() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("folio_local", android.content.Context.MODE_PRIVATE) }
-    var notes by remember { mutableStateOf(loadNotes(prefs.getString("notes", "[]") ?: "[]")) }
+    var notes by remember { mutableStateOf(loadNotes(prefs.getString("notes", "[]") ?: "[]") { corrupt ->
+        // Preserve the original bytes before a later edit can overwrite malformed storage.
+        prefs.edit().putString("notes_recovery_backup", corrupt).apply()
+    }) }
     var selectedId by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
     var section by remember { mutableStateOf("All Notes") }
@@ -303,7 +306,7 @@ private fun decodeBackup(raw: String): List<FolioNote> {
         )
     }
 }
-private fun loadNotes(raw: String): List<FolioNote> = try {
+private fun loadNotes(raw: String, onCorrupt: (String) -> Unit = {}): List<FolioNote> = try {
     val array = JSONArray(raw)
     (0 until array.length()).map { i ->
         val item = array.getJSONObject(i)
@@ -315,7 +318,10 @@ private fun loadNotes(raw: String): List<FolioNote> = try {
             item.optLong("updatedAt", System.currentTimeMillis()),
             item.optLong("createdAt", item.optLong("updatedAt", System.currentTimeMillis())))
     }
-} catch (_: Exception) { emptyList() }
+} catch (_: Exception) {
+    onCorrupt(raw)
+    emptyList()
+}
 private fun encodeNotes(notes: List<FolioNote>): String {
     val array = JSONArray()
     notes.forEach { note ->
