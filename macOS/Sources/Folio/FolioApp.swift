@@ -202,10 +202,10 @@ final class NoteStore: ObservableObject {
             guard let id = UUID(uuidString: item.id) else { continue }
             let candidate = item.note
             guard let current = byID[id] else { byID[id] = candidate; continue }
-            if candidate.updatedAt > current.updatedAt { byID[id] = candidate }
-            else if candidate.updatedAt == current.updatedAt && candidate != current {
-                var conflict = candidate
-                let identity = "\(id.uuidString)|\(candidate.title)|\(candidate.body)|\(candidate.folder)|\(candidate.tags.joined(separator: ","))"
+            if candidate != current {
+                let losing = candidate.updatedAt > current.updatedAt ? current : candidate
+                var conflict = losing
+                let identity = "\(id.uuidString)|\(Int64(losing.updatedAt.timeIntervalSince1970 * 1000))|\(losing.title)|\(losing.body)|\(losing.folder)|\(losing.tags.joined(separator: ","))|\(losing.isArchived)|\(losing.isDeleted)"
                 let digest = SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
                 let uuidText = "\(digest.prefix(8))-\(digest.dropFirst(8).prefix(4))-5\(digest.dropFirst(13).prefix(3))-a\(digest.dropFirst(17).prefix(3))-\(digest.dropFirst(20).prefix(12))"
                 conflict.id = UUID(uuidString: uuidText) ?? UUID()
@@ -213,7 +213,8 @@ final class NoteStore: ObservableObject {
                 conflict.folder = "Sync Conflicts"
                 conflict.isPinned = false
                 byID[conflict.id] = conflict
-            }
+                if candidate.updatedAt > current.updatedAt { byID[id] = candidate }
+            } else if candidate.updatedAt > current.updatedAt { byID[id] = candidate }
         }
         notes = Array(byID.values).sorted { $0.updatedAt > $1.updatedAt }
         save()
