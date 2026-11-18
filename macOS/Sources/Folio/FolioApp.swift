@@ -35,7 +35,7 @@ struct PortableFolioNote: Codable {
     var updatedAtMs: Int64
 
     init(_ note: FolioNote) {
-        id = note.id.uuidString; title = note.title; body = note.body
+        id = note.id.uuidString.lowercased(); title = note.title; body = note.body
         folder = note.folder; tags = note.tags
         isPinned = note.isPinned; isArchived = note.isArchived; isDeleted = note.isDeleted
         createdAtMs = Int64(note.createdAt.timeIntervalSince1970 * 1000)
@@ -215,7 +215,7 @@ final class NoteStore: ObservableObject {
                 var conflict = losing
                 let tagsJSON = (try? JSONSerialization.data(withJSONObject: losing.tags))
                     .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
-                let identity = "\(id.uuidString)|\(Int64(losing.updatedAt.timeIntervalSince1970 * 1000))|\(losing.title)|\(losing.body)|\(losing.folder)|\(tagsJSON)|\(losing.isPinned)|\(losing.isArchived)|\(losing.isDeleted)"
+                let identity = "\(id.uuidString.lowercased())|\(Int64(losing.updatedAt.timeIntervalSince1970 * 1000))|\(losing.title)|\(losing.body)|\(losing.folder)|\(tagsJSON)|\(losing.isPinned)|\(losing.isArchived)|\(losing.isDeleted)"
                 var bytes = Array(Insecure.MD5.hash(data: Data(identity.utf8)))
                 bytes[6] = (bytes[6] & 0x0f) | 0x30
                 bytes[8] = (bytes[8] & 0x3f) | 0x80

@@ -133,24 +133,26 @@ object FolioPeerSync {
         fun ingest(array: JSONArray) {
             for (i in 0 until array.length()) {
                 val note = array.optJSONObject(i) ?: continue
-                val id = note.optString("id")
-                if (id.isBlank()) continue
+                val normalized = JSONObject(note.toString())
+                val rawId = normalized.optString("id")
+                val id = runCatching { UUID.fromString(rawId).toString() }.getOrNull() ?: continue
+                normalized.put("id", id)
                 val previous = byId[id]
-                if (previous == null) byId[id] = JSONObject(note.toString())
+                if (previous == null) byId[id] = normalized
                 else {
                     val oldTime = previous.optLong("updatedAt")
-                    val newTime = note.optLong("updatedAt")
-                    if (!sameContent(note, previous)) {
+                    val newTime = normalized.optLong("updatedAt")
+                    if (!sameContent(normalized, previous)) {
                         // Preserve the losing branch as a deterministic conflict copy; never silently discard edits.
                         if (newTime > oldTime) {
                             val preserved = conflictCopy(previous, id)
                             byId[preserved.getString("id")] = preserved
-                            byId[id] = JSONObject(note.toString())
+                            byId[id] = normalized
                         } else {
-                            val preserved = conflictCopy(note, id)
+                            val preserved = conflictCopy(normalized, id)
                             byId[preserved.getString("id")] = preserved
                         }
-                    } else if (newTime > oldTime) byId[id] = JSONObject(note.toString())
+                    } else if (newTime > oldTime) byId[id] = normalized
                 }
             }
         }

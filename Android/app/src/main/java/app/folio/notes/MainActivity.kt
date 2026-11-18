@@ -436,7 +436,9 @@ fun FolioScreen() {
                                         (0 until array.length()).map { index ->
                                             val item = array.getJSONObject(index)
                                             val tagArray = item.optJSONArray("tags") ?: JSONArray()
-                                            FolioNote(item.getString("id"), item.optString("title"), item.optString("body"),
+                                            val rawId = item.getString("id")
+        val canonicalId = runCatching { UUID.fromString(rawId).toString() }.getOrDefault(rawId)
+        FolioNote(canonicalId, item.optString("title"), item.optString("body"),
                                                 item.optBoolean("isPinned"), item.optString("folder", "Notes"),
                                                 (0 until tagArray.length()).map { tagArray.optString(it) },
                                                 item.optBoolean("isArchived"), item.optBoolean("isDeleted"),
@@ -656,7 +658,7 @@ private fun decodeBackup(raw: String): List<FolioNote> {
             else -> now
         }
         FolioNote(
-            id = item.optString("id").takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString(),
+            id = item.optString("id").takeIf { it.isNotBlank() }?.let { rawId -> runCatching { UUID.fromString(rawId).toString() }.getOrDefault(rawId) } ?: UUID.randomUUID().toString(),
             title = item.optString("title", "Untitled Note"),
             body = item.optString("body", ""),
             pinned = item.optBoolean("isPinned", item.optBoolean("pinned")),
