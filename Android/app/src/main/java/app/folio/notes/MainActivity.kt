@@ -159,6 +159,19 @@ fun FolioScreen() {
         }.onSuccess { backupStatus = "Backup exported." }
             .onFailure { backupStatus = it.message ?: "Backup export failed." }
     }
+    val exportMarkdown = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/markdown")) { uri: Uri? ->
+        val note = notes.firstOrNull { it.id == selectedId }
+        if (uri != null && note != null) runCatching {
+            val markdown = buildString {
+                append("# ").append(note.title).append("\n\n")
+                if (note.tags.isNotEmpty()) append(note.tags.joinToString(" ") { "#$it" }).append("\n\n")
+                append(note.body)
+            }
+            context.contentResolver.openOutputStream(uri)?.use { it.write(markdown.toByteArray(Charsets.UTF_8)) }
+                ?: error("Could not write the Markdown file.")
+        }.onSuccess { backupStatus = "Markdown exported." }
+            .onFailure { backupStatus = it.message ?: "Markdown export failed." }
+    }
     val importAttachment = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         val target = attachmentTargetId
         if (uri != null && target != null) runCatching {
@@ -418,10 +431,14 @@ fun FolioScreen() {
                             updateSelected { it.copy(tags = tags) }
                         }, modifier = Modifier.fillMaxWidth(), label = { Text("Tags (comma separated)") }, singleLine = true)
                         Spacer(Modifier.height(6.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            listOf("# " to "H1", "## " to "H2", "- " to "Bullet", "- [ ] " to "Task", "> " to "Quote").forEach { (prefix, label) ->
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            listOf("# " to "H1", "## " to "H2", "- " to "Bullet", "- [ ] " to "Task", "> " to "Quote",
+                                "**bold**" to "Bold", "_italic_" to "Italic", "`code`" to "Code", "[text](url)" to "Link",
+                                "| Column | Column |\\n| --- | --- |\\n| Value | Value |" to "Table").forEach { (snippet, label) ->
                                 TextButton(onClick = {
-                                    editingBody += (if (editingBody.isBlank() || editingBody.endsWith("\n")) "" else "\n") + prefix
+                                    val addition = if (snippet in listOf("**bold**", "_italic_", "`code`", "[text](url)")) snippet
+                                    else (if (editingBody.isBlank() || editingBody.endsWith("\n")) "" else "\n") + snippet
+                                    editingBody += addition
                                     updateSelected { it.copy(body = editingBody) }
                                 }) { Text(label, style = MaterialTheme.typography.labelSmall) }
                             }
@@ -484,17 +501,37 @@ fun FolioScreen() {
                                 }) { Text("Remove") }
                             }
                         }
-                        Text(editingBody.split(Regex("\\s+")).count { it.isNotBlank() }.toString() + " words · " + editingBody.length + " characters",
-                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        TextButton(onClick = {
-                            val note = notes.firstOrNull { it.id == selectedId } ?: return@TextButton
-                            val send = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/markdown"
-                                putExtra(Intent.EXTRA_SUBJECT, note.title)
-                                putExtra(Intent.EXTRA_TEXT, "# " + note.title + "\n\n" + note.body)
-                            }
-                            context.startActivity(Intent.createChooser(send, "Share note"))
-                        }) { Text("Share / Export Markdown") }
+                        val wordCount = editingBody.split(Regex("\\s+")).count { it.isNotBlank() }
+                        val checklist = Regex("(?m)^\\s*- \\[([ xX])\\]").findAll(editingBody).toList()
+                        val completedTasks = checklist.count { it.groupValues[1].equals("x", true) }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Text("$wordCount words · ${editingBody.length} characters",
+                                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (checklist.isNotEmpty()) Text("$completedTasks / ${checklist.size} tasks",
+                                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
+                        }
+                        if (checklist.isNotEmpty()) LinearProgressIndicator(
+                            progress = { completedTasks.toFloat() / checklist.size.toFloat() },
+                            modifier = Modifier.fillMaxWidth().height(4.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = {
+                                val note = notes.firstOrNull { it.id == selectedId } ?: return@TextButton
+                                val send = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/markdown"
+                                    putExtra(Intent.EXTRA_SUBJECT, note.title)
+                                    putExtra(Intent.EXTRA_TEXT, "# " + note.title + "\n\n" + note.body)
+                                }
+                                context.startActivity(Intent.createChooser(send, "Share note"))
+                            }) { Text("Share") }
+                            TextButton(onClick = {
+                                val name = (notes.firstOrNull { it.id == selectedId }?.title ?: "Folio-Note")
+                                    .replace(Regex("[^A-Za-z0-9._-]+"), "-").trim('-').ifBlank { "Folio-Note" } + ".md"
+                                exportMarkdown.launch(name)
+                            }) { Text("Export .md") }
+                        }
                     }
                 } else if (!compactLayout) {
                     Box(Modifier.weight(1.1f).fillMaxHeight()) {
