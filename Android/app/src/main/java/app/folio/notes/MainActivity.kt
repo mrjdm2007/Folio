@@ -69,6 +69,7 @@ fun FolioScreen() {
     }
     fun persist(updated: List<FolioNote>) {
         notes = updated; prefs.edit().putString("notes", encodeNotes(updated)).apply()
+        FolioWidgetProvider.refresh(context)
     }
     fun newNote() {
         val note = FolioNote(UUID.randomUUID().toString(), "Untitled Note", "")
