@@ -31,7 +31,6 @@ final class FolioPeerSyncService {
         SecItemDelete(query as CFDictionary)
         var item = query
         item[kSecValueData as String] = Data(secret.utf8)
-        item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         let status = SecItemAdd(item as CFDictionary, nil)
         guard status == errSecSuccess else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(status)) }
     }
