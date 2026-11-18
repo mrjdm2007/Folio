@@ -67,6 +67,10 @@ The Supabase migration `20261118000100_folio_encrypted_sync.sql` now defines per
 - macOS WidgetKit needs a Widget Extension target; the current macOS package is a Swift Package executable, not an Xcode project with an extension target.
 
 
+## Additional library controls
+
+- Android now offers interactive sorting by recently updated, oldest first, title A–Z, and title Z–A. Pinned notes remain grouped ahead of unpinned notes in every sort mode.
+
 ## Peer-to-peer sync direction
 
 Folio's target sync architecture is device-to-device: macOS and Android are equal peers, with automatic discovery and a sync attempt whenever the app opens. Same-network connections are the default; remote sync can use a private VPN managed by the user. No external cloud note-storage service is required. The protocol, pairing, encryption, offline queue, conflict, tombstone, and attachment requirements are specified in [P2P_SYNC_PROTOCOL.md](P2P_SYNC_PROTOCOL.md). This is a design contract only; native peer sync is not yet implemented and must not be presented as working.
