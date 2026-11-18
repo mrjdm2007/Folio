@@ -169,54 +169,54 @@ fun FolioScreen() {
     fun createTemplate(kind: String) {
         val date = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
         val pair = when (kind) {
-            "Class Notes" -> "Class Notes" to "# Topic
+            "Class Notes" -> "Class Notes" to """# Topic
 
 **Date:** $date
-**Course:** 
+**Course:**
 
 ## Key concepts
-- 
+-
 
 ## Examples
 
 ## Questions
-- [ ] "
-            "Meeting" -> "Meeting Notes" to "# Meeting
+- [ ]"""
+            "Meeting" -> "Meeting Notes" to """# Meeting
 
 **Date:** $date
-**Attendees:** 
+**Attendees:**
 
 ## Agenda
-1. 
+1.
 
 ## Decisions
-- 
+-
 
 ## Action items
-- [ ] Owner — Task — Due date"
-            "Daily Journal" -> "Daily Journal" to "# Daily Journal
+- [ ] Owner — Task — Due date"""
+            "Daily Journal" -> "Daily Journal" to """# Daily Journal
 
 **Date:** $date
 
 ## Today
 
 ## Highlights
-- 
+-
 
 ## To remember
-- "
-            else -> "Project Brief" to "# Project Brief
+-"""
+            else -> "Project Brief" to """# Project Brief
 
 ## Objective
 
 ## Scope
 
 ## Milestones
-- [ ] 
+- [ ]
 
 ## Risks
 
-## Next steps"
+## Next steps"""
         }
         val note = FolioNote(UUID.randomUUID().toString(), pair.first, pair.second)
         persist(listOf(note) + notes); selectedId = note.id
@@ -399,9 +399,7 @@ fun FolioScreen() {
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             listOf("# " to "H1", "## " to "H2", "- " to "Bullet", "- [ ] " to "Task", "> " to "Quote").forEach { (prefix, label) ->
                                 TextButton(onClick = {
-                                    editingBody += (if (editingBody.isBlank() || editingBody.endsWith("
-")) "" else "
-") + prefix
+                                    editingBody += (if (editingBody.isBlank() || editingBody.endsWith("\n")) "" else "\n") + prefix
                                     updateSelected { it.copy(body = editingBody) }
                                 }) { Text(label, style = MaterialTheme.typography.labelSmall) }
                             }
@@ -469,9 +467,7 @@ fun FolioScreen() {
                             val send = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/markdown"
                                 putExtra(Intent.EXTRA_SUBJECT, note.title)
-                                putExtra(Intent.EXTRA_TEXT, "# " + note.title + "
-
-" + note.body)
+                                putExtra(Intent.EXTRA_TEXT, "# " + note.title + "\n\n" + note.body)
                             }
                             context.startActivity(Intent.createChooser(send, "Share note"))
                         }) { Text("Share / Export Markdown") }
