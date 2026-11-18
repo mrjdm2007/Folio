@@ -90,7 +90,19 @@ fun FolioScreen() {
     var peerAddress by remember { mutableStateOf(prefs.getString("p2p_peer_address", "") ?: "") }
     var pairingKey by remember { mutableStateOf(FolioPeerSync.pairingSecret(context)) }
     var syncMessage by remember { mutableStateOf("Peer sync is not paired") }
-    LaunchedEffect(Unit) { FolioPeerSync.startListener(context) }
+    LaunchedEffect(Unit) {
+        FolioPeerSync.startListener(context)
+        val savedPeer = prefs.getString("p2p_peer_address", "") ?: ""
+        if (savedPeer.isNotBlank() && pairingKey.length >= 32) {
+            syncMessage = "Checking paired device…"
+            FolioPeerSync.sync(context, savedPeer) { result ->
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    result.onSuccess { count -> syncMessage = "Synced · $count notes" }
+                        .onFailure { error -> syncMessage = "Peer unavailable · ${error.message ?: "retry later"}" }
+                }
+            }
+        }
+    }
 
     val exportBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
         if (uri != null) runCatching {
@@ -251,7 +263,7 @@ fun FolioScreen() {
                         prefs.edit().putString("p2p_peer_address", peerAddress.trim()).apply()
                         syncMessage = "Connecting…"
                         FolioPeerSync.sync(context, peerAddress.trim()) { result ->
-                            runOnUiThread {
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
                                 result.onSuccess { count -> syncMessage = "Sync complete · $count notes on this device" }
                                     .onFailure { error -> syncMessage = "Sync failed · ${error.message ?: "connection error"}" }
                             }
