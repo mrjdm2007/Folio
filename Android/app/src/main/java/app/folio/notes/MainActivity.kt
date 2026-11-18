@@ -776,6 +776,17 @@ private fun FolioNoteRow(
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Text(note.title.ifBlank { "Untitled Note" }, style = MaterialTheme.typography.titleMedium, maxLines = 1, modifier = Modifier.weight(1f))
+                    if (note.priority != "Normal") {
+                        val priorityColor = when (note.priority) {
+                            "Urgent" -> MaterialTheme.colorScheme.error
+                            "High" -> MaterialTheme.colorScheme.secondary
+                            else -> MaterialTheme.colorScheme.tertiary
+                        }
+                        Surface(shape = RoundedCornerShape(50), color = priorityColor.copy(alpha = 0.13f)) {
+                            Text(note.priority.uppercase(), modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                                style = MaterialTheme.typography.labelSmall, color = priorityColor)
+                        }
+                    }
                     if (note.pinned) Icon(Icons.Default.PushPin, contentDescription = "Pinned", tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(15.dp))
                 }
                 Text(note.body.lineSequence().firstOrNull { it.isNotBlank() } ?: "No additional text",

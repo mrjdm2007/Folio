@@ -611,6 +611,14 @@ struct FolioRootView: View {
                         VStack(alignment: .leading, spacing: 5) {
                             HStack {
                                 Text(note.title.isEmpty ? "Untitled Note" : note.title).font(.headline).lineLimit(1)
+                                if note.priority != "Normal" {
+                                    Text(note.priority.uppercased())
+                                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                        .tracking(0.6)
+                                        .foregroundStyle(note.priority == "Urgent" ? Color.red : note.priority == "High" ? Color.orange : Color.green)
+                                        .padding(.horizontal, 7).padding(.vertical, 3)
+                                        .background((note.priority == "Urgent" ? Color.red : note.priority == "High" ? Color.orange : Color.green).opacity(0.12), in: Capsule())
+                                }
                                 if note.isPinned { Image(systemName: "pin.fill").foregroundStyle(.orange) }
                             }
                             Text(note.body.isEmpty ? "No additional text" : note.body).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
