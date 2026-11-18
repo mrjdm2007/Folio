@@ -90,6 +90,20 @@ fun FolioScreen() {
     var peerAddress by remember { mutableStateOf(prefs.getString("p2p_peer_address", "") ?: "") }
     var pairingKey by remember { mutableStateOf(FolioPeerSync.pairingSecret(context)) }
     var syncMessage by remember { mutableStateOf("Peer sync is not paired") }
+    DisposableEffect(Unit) {
+        FolioPeerSync.onRemoteNotes = { raw ->
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                notes = loadNotes(raw)
+                selectedId?.let { id ->
+                    notes.firstOrNull { it.id == id }?.let { note ->
+                        editingTitle = note.title; editingBody = note.body
+                        editingFolder = note.folder; editingTags = note.tags.joinToString(", ")
+                    }
+                }
+            }
+        }
+        onDispose { FolioPeerSync.onRemoteNotes = null }
+    }
     LaunchedEffect(Unit) {
         FolioPeerSync.startListener(context)
         val savedPeer = prefs.getString("p2p_peer_address", "") ?: ""
@@ -97,8 +111,14 @@ fun FolioScreen() {
             syncMessage = "Checking paired device…"
             FolioPeerSync.sync(context, savedPeer) { result ->
                 android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    result.onSuccess { count -> syncMessage = "Synced · $count notes" }
-                        .onFailure { error -> syncMessage = "Peer unavailable · ${error.message ?: "retry later"}" }
+                    result.onSuccess { count ->
+                        notes = loadNotes(prefs.getString("notes", "[]") ?: "[]")
+                        selectedId?.let { id -> notes.firstOrNull { it.id == id }?.let { note ->
+                            editingTitle = note.title; editingBody = note.body
+                            editingFolder = note.folder; editingTags = note.tags.joinToString(", ")
+                        } }
+                        syncMessage = "Synced · $count notes"
+                    }.onFailure { error -> syncMessage = "Peer unavailable · ${error.message ?: "retry later"}" }
                 }
             }
         }
@@ -264,8 +284,14 @@ fun FolioScreen() {
                         syncMessage = "Connecting…"
                         FolioPeerSync.sync(context, peerAddress.trim()) { result ->
                             android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                result.onSuccess { count -> syncMessage = "Sync complete · $count notes on this device" }
-                                    .onFailure { error -> syncMessage = "Sync failed · ${error.message ?: "connection error"}" }
+                                result.onSuccess { count ->
+                                    notes = loadNotes(prefs.getString("notes", "[]") ?: "[]")
+                                    selectedId?.let { id -> notes.firstOrNull { it.id == id }?.let { note ->
+                                        editingTitle = note.title; editingBody = note.body
+                                        editingFolder = note.folder; editingTags = note.tags.joinToString(", ")
+                                    } }
+                                    syncMessage = "Sync complete · $count notes on this device"
+                                }.onFailure { error -> syncMessage = "Sync failed · ${error.message ?: "connection error"}" }
                             }
                         }
                     }, enabled = peerAddress.isNotBlank() && pairingKey.length >= 32) { Text("Sync now") }
