@@ -55,6 +55,16 @@ fun FolioScreen() {
     var editingBody by remember { mutableStateOf("") }
     var editingFolder by remember { mutableStateOf("Notes") }
     var editingTags by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        val first = notes.firstOrNull { !it.deleted && !it.archived }
+        if (first != null && selectedId == null) {
+            selectedId = first.id
+            editingTitle = first.title
+            editingBody = first.body
+            editingFolder = first.folder
+            editingTags = first.tags.joinToString(", ")
+        }
+    }
     fun persist(updated: List<FolioNote>) {
         notes = updated; prefs.edit().putString("notes", encodeNotes(updated)).apply()
     }
@@ -116,7 +126,7 @@ fun FolioScreen() {
             "Archive" -> note.archived && !note.deleted
             "Recently Deleted" -> note.deleted
             "All Notes" -> !note.archived && !note.deleted
-            else -> note.folder == section && !note.archived && !note.deleted
+            else -> note.folder.trim().ifBlank { "Notes" } == section && !note.archived && !note.deleted
         }
         inSection && (query.isBlank() || note.title.contains(query, true) ||
             note.body.contains(query, true) || note.tags.any { it.contains(query, true) })
@@ -176,17 +186,17 @@ fun FolioScreen() {
                                 },
                                 trailingContent = {
                                     Row {
-                                        IconButton(onClick = { persist(notes.map { if (it.id == note.id) it.copy(pinned = !it.pinned) else it }) }) {
+                                        IconButton(onClick = { persist(notes.map { if (it.id == note.id) it.copy(pinned = !it.pinned, updatedAt = System.currentTimeMillis()) else it }) }) {
                                             Icon(Icons.Default.PushPin, if (note.pinned) "Unpin" else "Pin")
                                         }
                                         if (!note.deleted && !note.archived) {
                                             TextButton(onClick = { duplicate(note) }) { Text("Copy") }
                                             IconButton(onClick = {
-                                                persist(notes.map { if (it.id == note.id) it.copy(archived = true) else it })
+                                                persist(notes.map { if (it.id == note.id) it.copy(archived = true, updatedAt = System.currentTimeMillis()) else it })
                                                 if (selectedId == note.id) selectedId = null
                                             }) { Icon(Icons.Default.Archive, "Archive") }
                                             IconButton(onClick = {
-                                                persist(notes.map { if (it.id == note.id) it.copy(deleted = true) else it })
+                                                persist(notes.map { if (it.id == note.id) it.copy(deleted = true, archived = false, updatedAt = System.currentTimeMillis()) else it })
                                                 if (selectedId == note.id) selectedId = null
                                             }) { Icon(Icons.Default.Delete, "Move to trash") }
                                         } else if (note.deleted) {
