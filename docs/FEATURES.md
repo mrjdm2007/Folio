@@ -74,3 +74,11 @@ The Supabase migration `20261118000100_folio_encrypted_sync.sql` now defines per
 ## Peer-to-peer sync direction
 
 Folio's target sync architecture is device-to-device: macOS and Android are equal peers, with automatic discovery and a sync attempt whenever the app opens. Same-network connections are the default; remote sync can use a private VPN managed by the user. No external cloud note-storage service is required. The protocol, pairing, encryption, offline queue, conflict, tombstone, and attachment requirements are specified in [P2P_SYNC_PROTOCOL.md](P2P_SYNC_PROTOCOL.md). This is a design contract only; native peer sync is not yet implemented and must not be presented as working.
+
+
+## Library improvements (latest branch update)
+
+- macOS and Android both provide note sorting by recent update, oldest first, and title order while keeping pinned notes grouped first.
+- Android stores up to 20 previous note snapshots per note and provides a version-history restore dialog.
+- macOS stores up to 20 previous note revisions per note and exposes a Version History menu in the editor.
+- These histories are local-only at present. They are not yet replicated between devices; P2P sync must include revision history and attachment manifests before it can be considered complete.
