@@ -2,6 +2,7 @@ import SwiftUI
 import Combine
 import UniformTypeIdentifiers
 import AppKit
+import Security
 
 @main
 struct FolioApp: App {
@@ -152,6 +153,7 @@ final class NoteStore: ObservableObject {
         if peerPairingKey.count >= 32 {
             do { try peerService?.start(); syncStatus = "Ready for paired device" }
             catch { syncStatus = error.localizedDescription }
+            if !peerAddress.isEmpty { DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.syncWithPeer() } }
         }
     }
 
@@ -202,7 +204,10 @@ final class NoteStore: ObservableObject {
             if candidate.updatedAt > current.updatedAt { byID[id] = candidate }
             else if candidate.updatedAt == current.updatedAt && candidate != current {
                 var conflict = candidate
-                conflict.id = UUID()
+                let identity = "\(id.uuidString)|\(candidate.title)|\(candidate.body)|\(candidate.folder)|\(candidate.tags.joined(separator: ","))"
+                let digest = SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
+                let uuidText = "\(digest.prefix(8))-\(digest.dropFirst(8).prefix(4))-5\(digest.dropFirst(13).prefix(3))-a\(digest.dropFirst(17).prefix(3))-\(digest.dropFirst(20).prefix(12))"
+                conflict.id = UUID(uuidString: uuidText) ?? UUID()
                 conflict.title += " (Sync conflict)"
                 conflict.folder = "Sync Conflicts"
                 conflict.isPinned = false
