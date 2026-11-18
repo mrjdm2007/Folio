@@ -67,6 +67,7 @@ fun FolioScreen() {
             editingBody = first.body
             editingFolder = first.folder
             editingTags = first.tags.joinToString(", ")
+            attachedDocs = decodeDocuments(prefs.getString("documents_${first.id}", "[]") ?: "[]")
         }
     }
     fun persist(updated: List<FolioNote>) {
@@ -301,6 +302,7 @@ fun FolioScreen() {
                             }
                         }
                         Text(editingBody.split(Regex("\\s+")).count { it.isNotBlank() }.toString() + " words · " + editingBody.length + " characters",
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         TextButton(onClick = {
                             val note = notes.firstOrNull { it.id == selectedId } ?: return@TextButton
                             val send = Intent(Intent.ACTION_SEND).apply {
