@@ -68,10 +68,10 @@ fun FolioScreen() {
     fun createTemplate(kind: String) {
         val date = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
         val pair = when (kind) {
-            "Class Notes" -> "Class Notes" to "# Topic\\n\\n**Date:** $date\\n**Course:** \\n\\n## Key concepts\\n- \\n\\n## Examples\\n\\n## Questions\\n- [ ] "
-            "Meeting" -> "Meeting Notes" to "# Meeting\\n\\n**Date:** $date\\n**Attendees:** \\n\\n## Agenda\\n1. \\n\\n## Decisions\\n- \\n\\n## Action items\\n- [ ] Owner — Task — Due date"
-            "Daily Journal" -> "Daily Journal" to "# Daily Journal\\n\\n**Date:** $date\\n\\n## Today\\n\\n## Highlights\\n- \\n\\n## To remember\\n- "
-            else -> "Project Brief" to "# Project Brief\\n\\n## Objective\\n\\n## Scope\\n\\n## Milestones\\n- [ ] \\n\\n## Risks\\n\\n## Next steps"
+            "Class Notes" -> "Class Notes" to "# Topic\n\n**Date:** $date\n**Course:** \n\n## Key concepts\n- \n\n## Examples\n\n## Questions\n- [ ] "
+            "Meeting" -> "Meeting Notes" to "# Meeting\n\n**Date:** $date\n**Attendees:** \n\n## Agenda\n1. \n\n## Decisions\n- \n\n## Action items\n- [ ] Owner — Task — Due date"
+            "Daily Journal" -> "Daily Journal" to "# Daily Journal\n\n**Date:** $date\n\n## Today\n\n## Highlights\n- \n\n## To remember\n- "
+            else -> "Project Brief" to "# Project Brief\n\n## Objective\n\n## Scope\n\n## Milestones\n- [ ] \n\n## Risks\n\n## Next steps"
         }
         val note = FolioNote(UUID.randomUUID().toString(), pair.first, pair.second)
         persist(listOf(note) + notes); selectedId = note.id
@@ -174,7 +174,7 @@ fun FolioScreen() {
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             listOf("# " to "H1", "## " to "H2", "- " to "Bullet", "- [ ] " to "Task", "> " to "Quote").forEach { (prefix, label) ->
                                 TextButton(onClick = {
-                                    editingBody += (if (editingBody.isBlank() || editingBody.endsWith("\\n")) "" else "\\n") + prefix
+                                    editingBody += (if (editingBody.isBlank() || editingBody.endsWith("\n")) "" else "\n") + prefix
                                     updateSelected { it.copy(body = editingBody) }
                                 }) { Text(label, style = MaterialTheme.typography.labelSmall) }
                             }
@@ -187,7 +187,7 @@ fun FolioScreen() {
                             val send = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/markdown"
                                 putExtra(Intent.EXTRA_SUBJECT, note.title)
-                                putExtra(Intent.EXTRA_TEXT, "# " + note.title + "\\n\\n" + note.body)
+                                putExtra(Intent.EXTRA_TEXT, "# " + note.title + "\n\n" + note.body)
                             }
                             context.startActivity(Intent.createChooser(send, "Share note"))
                         }) { Text("Share / Export Markdown") }
