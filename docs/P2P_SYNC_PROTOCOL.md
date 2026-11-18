@@ -86,6 +86,15 @@ Peers negotiate a protocol version. Unknown mandatory capabilities cause a clear
 - No external storage account, hosted database, or public relay is required.
 - Tests cover malformed messages, replayed mutation IDs, stale revisions, oversized payloads, and changed peer fingerprints.
 
-## Implementation status
+## Current implementation status — first direct-sync pass
 
-This document is the implementation contract, not evidence that the protocol is already shipped. The current clients still use local JSON/preference storage and do not yet implement peer discovery, pairing, authenticated transport, change logs, transactional outboxes, or bidirectional sync. Do not advertise sync as available until both native clients implement the contract and the acceptance tests pass.
+Both native clients now contain a working first-pass direct TCP exchange on port 47831:
+
+- Either platform can listen and initiate a connection; the same framed JSON protocol is implemented in Kotlin and Swift.
+- Pairing is an out-of-band, high-entropy shared secret (generated from 192 random bits). The Android copy is stored with AndroidX EncryptedSharedPreferences backed by Android Keystore; macOS stores it in Keychain.
+- Every request and response payload is encrypted and authenticated with AES-256-GCM. A fresh random salt and nonce are generated for each message; the key is derived with PBKDF2-HMAC-SHA256 (210,000 iterations).
+- The app can sync by entering the other device's IP address. It saves that address and attempts a sync on next app open. Both apps expose a manual Sync Now control.
+- Notes and metadata are exchanged bidirectionally. Divergent versions are preserved as deterministic copies in a "Sync Conflicts" folder instead of silently discarding the losing version.
+- The receiver applies the merged library locally; retries send the current local snapshot again, so an unavailable peer does not prevent local editing.
+
+**This is an initial usable transport, not yet the complete release protocol above.** It does not yet provide Bonjour/NSD automatic discovery, certificate-based mutual TLS or forward secrecy, a durable per-revision change log/outbox, robust common-ancestor conflict resolution, attachment or version-history replication, device revocation, background retry while the app is closed, or automated two-device integration tests. Payload encryption protects note contents and integrity, but connection metadata (including IP/port and traffic timing) remains visible on the network. The local note databases and ordinary backups remain plaintext. Use a trusted LAN or private VPN, keep the pairing secret private, and do not treat this first pass as an independently security-audited product.
