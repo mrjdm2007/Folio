@@ -98,3 +98,10 @@ This is a first usable direct-sync pass, not the complete release protocol. It c
 - Android note editing now captures throttled local revision snapshots (up to 50 per note) and preserves the current version before a history restore.
 - macOS note editor now exposes its existing local attachment store, including open and remove actions.
 - macOS CI now packages a launchable `.app` bundle with a generated Folio icon and uploads a ZIP artifact. The app is not code-signed or notarized by this workflow.
+
+
+## Tag filtering
+
+- Android exposes horizontal tag chips beneath folder filters, with an All tags reset.
+- macOS exposes a tag-filter menu above the note list.
+- Tag filters combine with the selected folder/inbox, search query and sort mode; clearing the tag filter restores the full selected view.

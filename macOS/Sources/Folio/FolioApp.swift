@@ -124,6 +124,8 @@ final class NoteStore: ObservableObject {
     @Published var selection: UUID?
     @Published var query = ""
     @Published var selectedFolder = "All Notes"
+    @Published var selectedTag: String? = nil
+    var allTags: [String] { Array(Set(notes.filter { !$0.isArchived && !$0.isDeleted }.flatMap(\.tags))).sorted() }
     @Published var sortMode = "Recently updated"
     private let fileURL: URL
     private let attachmentsURL: URL
@@ -247,7 +249,8 @@ final class NoteStore: ObservableObject {
             let match = query.isEmpty || note.title.localizedCaseInsensitiveContains(query) ||
                 note.body.localizedCaseInsensitiveContains(query) ||
                 note.tags.contains(where: { $0.localizedCaseInsensitiveContains(query) })
-            return location && match
+            let tagMatch = selectedTag == nil || note.tags.contains(where: { $0.localizedCaseInsensitiveCompare(selectedTag!) == .orderedSame })
+            return location && match && tagMatch
         }.sorted { left, right in
             if left.isPinned != right.isPinned { return left.isPinned }
             switch sortMode {
@@ -482,6 +485,21 @@ struct FolioRootView: View {
                 HStack {
                     Text("\(store.visibleNotes.count) notes").font(.caption).foregroundStyle(.secondary)
                     Spacer()
+                    Menu {
+                        Button("All tags") { store.selectedTag = nil }
+                        Divider()
+                        ForEach(store.allTags, id: \.self) { tag in
+                            Button {
+                                store.selectedTag = store.selectedTag == tag ? nil : tag
+                            } label: {
+                                if store.selectedTag == tag { Label("#" + tag, systemImage: "checkmark") }
+                                else { Text("#" + tag) }
+                            }
+                        }
+                    } label: {
+                        Label(store.selectedTag.map { "#" + $0 } ?? "Tags", systemImage: "tag")
+                            .font(.caption)
+                    }.help("Filter notes by tag")
                     Menu {
                         ForEach(["Recently updated", "Recently created", "Oldest first", "Title A–Z", "Title Z–A"], id: \.self) { mode in
                             Button { store.sortMode = mode } label: {

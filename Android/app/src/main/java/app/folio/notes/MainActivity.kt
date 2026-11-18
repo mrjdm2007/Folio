@@ -73,6 +73,7 @@ fun FolioScreen() {
     var permanentDeleteId by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
     var section by remember { mutableStateOf("All Notes") }
+    var selectedTag by remember { mutableStateOf<String?>(null) }
     var sortMode by remember { mutableStateOf("Recently updated") }
     var showSortMenu by remember { mutableStateOf(false) }
     var showSyncPanel by remember { mutableStateOf(false) }
@@ -274,7 +275,7 @@ fun FolioScreen() {
             "All Notes" -> !note.archived && !note.deleted
             else -> note.folder.trim().ifBlank { "Notes" } == section && !note.archived && !note.deleted
         }
-        inSection && (query.isBlank() || note.title.contains(query, true) ||
+        inSection && (selectedTag == null || note.tags.any { it.equals(selectedTag, true) }) && (query.isBlank() || note.title.contains(query, true) ||
             note.body.contains(query, true) || note.tags.any { it.contains(query, true) })
     }.let { matches ->
         val pinnedFirst = matches.sortedByDescending { it.pinned }
@@ -384,6 +385,21 @@ fun FolioScreen() {
                     folders.forEach { folder ->
                         FilterChip(selected = section == folder, onClick = { section = folder },
                             label = { Text(folder) })
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+            }
+            val availableTags = notes.filter { !it.archived && !it.deleted }.flatMap { it.tags }
+                .map { it.trim() }.filter { it.isNotBlank() }.distinct().sorted()
+            if (availableTags.isNotEmpty()) {
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(selected = selectedTag == null, onClick = { selectedTag = null },
+                        label = { Text("All tags") })
+                    availableTags.forEach { tag ->
+                        FilterChip(selected = selectedTag == tag, onClick = {
+                            selectedTag = if (selectedTag == tag) null else tag
+                        }, label = { Text("#$tag") })
                     }
                 }
                 Spacer(Modifier.height(6.dp))
