@@ -20,15 +20,14 @@
 
 ## Not implemented / not production-ready
 
-- Full rendered rich-text blocks (tables, code highlighting, math, callouts)
+- Markdown preview mode on both native clients (basic rendering; advanced tables, code highlighting, math and callouts remain outstanding)
 - Image/file attachments, scanning and OCR (audio transcription intentionally excluded)
 - PDF import, annotation and export
-- Handwriting and drawing canvas
 - Client UI for version history and conflict-aware merge
 - Client-side account sign-in, automatic cross-device sync worker and offline outbox
 - Client-side end-to-end encryption, secure key storage and recovery
 - Safe Folder with biometric unlock and password fallback
-- Widgets, share extensions, quick capture and menu-bar capture
+- Android home-screen widget (latest note and library count); macOS WidgetKit extension, share extensions, quick capture and menu-bar capture remain outstanding
 - Accessibility/localization audit and automated UI/integration tests
 
 ## Backup and security notes
@@ -54,3 +53,16 @@ These changes have been committed, but CI is still required to confirm compilati
 The Supabase migration `20261118000100_folio_encrypted_sync.sql` now defines per-user encrypted note envelopes, append-only revision history, attachment metadata, a private encrypted-attachment bucket, and row-level security policies. See [SYNC_SETUP.md](SYNC_SETUP.md).
 
 **Important:** The migration is backend groundwork only. Neither native client currently performs Supabase authentication, client-side encryption, background sync, or conflict resolution. Those features must not be marked complete until the clients are implemented and tested. Do not upload private notes to this schema using plaintext payloads.
+
+
+## Latest implementation pass
+
+- macOS and Android editors now include a Markdown preview mode alongside source editing. The macOS preview uses Foundation's Markdown parser; Android currently renders headings, quotes and list markers with native Compose typography. This is a useful preview, not yet a complete CommonMark/GFM editor.
+- Android now includes a resizable home-screen widget showing the library count and most recently updated note preview. It refreshes when the local note library is saved.
+- Drawing and handwriting are intentionally out of scope.
+
+## Remaining release blockers
+
+- **Cloud sync is not active yet.** The repository has Supabase encrypted storage/RLS and an atomic revision-checked write RPC, but no native sign-in, key setup/recovery, client encryption, pull/push worker, offline queue or conflict UI. The Supabase project URL and publishable key must be configured and migrations deployed before live sync can be tested. Never use a service-role key in either app.
+- **Document management is not complete yet.** A proper cross-platform attachment library still needs import, safe local storage, open/share, rename/delete, backup semantics and encrypted sync. Do not treat Markdown preview or backup export as document management.
+- macOS WidgetKit needs a Widget Extension target; the current macOS package is a Swift Package executable, not an Xcode project with an extension target.
