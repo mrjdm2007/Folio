@@ -65,3 +65,8 @@ The Supabase migration `20261118000100_folio_encrypted_sync.sql` now defines per
 - **Cloud sync is not active yet.** The repository has Supabase encrypted storage/RLS and a hardened revision-checked write RPC, but no native sign-in, key setup/recovery, client encryption, pull/push worker, offline queue or conflict UI. The Supabase project URL and publishable key must be configured and migrations deployed before live sync can be tested. Never use a service-role key in either app.
 - **Document management is partial.** Android notes can attach PDF, image, text and DOCX documents through the system document picker, reopen them and remove links. Attachments remain external content URIs with persisted read permission; they are not copied into Folio, included in JSON backups, available on macOS, or synchronized. A complete cross-platform document library still needs app-managed storage, rename, backup semantics, preview/share polish and encrypted sync.
 - macOS WidgetKit needs a Widget Extension target; the current macOS package is a Swift Package executable, not an Xcode project with an extension target.
+
+
+## Peer-to-peer sync direction
+
+Folio's target sync architecture is device-to-device: macOS and Android are equal peers, with automatic discovery and a sync attempt whenever the app opens. Same-network connections are the default; remote sync can use a private VPN managed by the user. No external cloud note-storage service is required. The protocol, pairing, encryption, offline queue, conflict, tombstone, and attachment requirements are specified in [P2P_SYNC_PROTOCOL.md](P2P_SYNC_PROTOCOL.md). This is a design contract only; native peer sync is not yet implemented and must not be presented as working.
