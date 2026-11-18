@@ -121,6 +121,12 @@ final class NoteStore: ObservableObject {
     private let historyURL: URL
     @Published var revisionHistory: [String: [FolioNote]] = [:]
     @Published var attachments: [FolioAttachment] = []
+    @Published var peerAddress = UserDefaults.standard.string(forKey: "FolioPeerAddress") ?? "" {
+        didSet { UserDefaults.standard.set(peerAddress, forKey: "FolioPeerAddress") }
+    }
+    @Published var peerPairingKey = ""
+    @Published var syncStatus = "Not paired"
+    private var peerService: FolioPeerSyncService?
     private var recoveredCorruptStore = false
 
     init() {
@@ -136,6 +142,76 @@ final class NoteStore: ObservableObject {
         loadAttachments()
         load()
         if notes.isEmpty && !recoveredCorruptStore { createNote(title: "Welcome to Folio") }
+        peerPairingKey = UserDefaults.standard.string(forKey: "FolioPeerPairingKey") ?? ""
+        peerService = FolioPeerSyncService(secret: { UserDefaults.standard.string(forKey: "FolioPeerPairingKey") ?? "" },
+            exchange: { [weak self] remote in
+                var result = remote
+                DispatchQueue.main.sync { if let self { result = self.mergePeerNotes(remote) } }
+                return result
+            })
+        if peerPairingKey.count >= 32 {
+            do { try peerService?.start(); syncStatus = "Ready for paired device" }
+            catch { syncStatus = error.localizedDescription }
+        }
+    }
+
+    func configurePeerSync(key: String) {
+        guard key.count >= 32 else { syncStatus = "Pairing key must be at least 32 characters."; return }
+        peerPairingKey = key
+        UserDefaults.standard.set(key, forKey: "FolioPeerPairingKey")
+        do {
+            try peerService?.start()
+            syncStatus = "Paired key saved · listening on port 47831"
+        } catch { syncStatus = error.localizedDescription }
+    }
+
+    func createPeerPairingKey() {
+        var bytes = [UInt8](repeating: 0, count: 24)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        let key = Data(bytes).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        configurePeerSync(key: key)
+    }
+
+    func syncWithPeer() {
+        guard !peerAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            syncStatus = "Enter the other device's IP address."; return
+        }
+        guard let peerService else { syncStatus = "Save a pairing key first."; return }
+        syncStatus = "Connecting…"
+        peerService.sync(host: peerAddress, notes: notes.map(PortableFolioNote.init)) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                switch result {
+                case .success(let remote):
+                    let merged = self.mergePeerNotes(remote)
+                    self.syncStatus = "Synced · \(merged.count) notes"
+                case .failure(let error): self.syncStatus = "Sync failed · \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func mergePeerNotes(_ remote: [PortableFolioNote]) -> [PortableFolioNote] {
+        var byID = Dictionary(uniqueKeysWithValues: notes.map { ($0.id, $0) })
+        for item in remote {
+            guard let id = UUID(uuidString: item.id) else { continue }
+            let candidate = item.note
+            guard let current = byID[id] else { byID[id] = candidate; continue }
+            if candidate.updatedAt > current.updatedAt { byID[id] = candidate }
+            else if candidate.updatedAt == current.updatedAt && candidate != current {
+                var conflict = candidate
+                conflict.id = UUID()
+                conflict.title += " (Sync conflict)"
+                conflict.folder = "Sync Conflicts"
+                conflict.isPinned = false
+                byID[conflict.id] = conflict
+            }
+        }
+        notes = Array(byID.values).sorted { $0.updatedAt > $1.updatedAt }
+        save()
+        return notes.map(PortableFolioNote.init)
     }
     var folders: [String] { Array(Set(notes.filter { !$0.isDeleted }.map(\.folder))).sorted() }
     var visibleNotes: [FolioNote] {
@@ -530,6 +606,19 @@ struct SettingsView: View {
                 Text("Local notes are stored in Application Support/Folio.").foregroundStyle(.secondary)
                 Text("\(store.notes.count) notes stored locally")
             }
+            Section("Peer-to-peer sync") {
+                SecureField("Shared pairing key (32+ characters)", text: $store.peerPairingKey)
+                HStack {
+                    Button("Create pairing key") { store.createPeerPairingKey() }
+                    Button("Save pairing key") { store.configurePeerSync(key: store.peerPairingKey) }
+                }
+                TextField("Other device IP address", text: $store.peerAddress)
+                Button("Sync Now") { store.syncWithPeer() }
+                    .disabled(store.peerAddress.isEmpty || store.peerPairingKey.count < 32)
+                Text(store.syncStatus).font(.caption).foregroundStyle(.secondary)
+                Text("Use the same key on both devices. Connect over the same trusted Wi-Fi or a private VPN. The note payload is encrypted with AES-256-GCM; never share the key publicly.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Backup and restore") {
                 HStack {
                     Button("Export Folio Backup") { backupDocument = store.makeBackup(); showingExporter = true }
@@ -542,8 +631,9 @@ struct SettingsView: View {
             Section("Available in this build") {
                 Text("Folders, tags, full-text search, pinning, archive, recently deleted and autosave.")
             }
-            Section("Still in development") {
-                Text("Cloud sync requires Supabase project configuration and deployed migrations. Rich Markdown preview is available; PDF/file attachments and platform widgets are being added incrementally. Handwriting and drawing are intentionally excluded.")
+            Section("Sync notes") {
+                Text("Peer sync uses an encrypted direct connection on port 47831. Both devices must be running Folio, use the same pairing key, and be reachable by IP. The first release syncs note text and metadata; attachments and automatic background discovery are not included yet.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }.padding(20).frame(width: 460)
             .fileExporter(isPresented: $showingExporter, document: backupDocument,
