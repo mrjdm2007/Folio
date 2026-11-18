@@ -121,6 +121,7 @@ final class NoteStore: ObservableObject {
         notes.filter { note in
             let location: Bool
             switch selectedFolder {
+            case "Pinned": location = note.isPinned && !note.isArchived && !note.isDeleted
             case "Archive": location = note.isArchived && !note.isDeleted
             case "Recently Deleted": location = note.isDeleted
             case "All Notes": location = !note.isArchived && !note.isDeleted
@@ -270,7 +271,7 @@ final class NoteStore: ObservableObject {
 
 struct FolioRootView: View {
     @EnvironmentObject private var store: NoteStore
-    private var sidebarItems: [String] { ["All Notes"] + store.folders + ["Archive", "Recently Deleted"] }
+    private var sidebarItems: [String] { ["All Notes", "Pinned"] + store.folders + ["Archive", "Recently Deleted"] }
     var body: some View {
         NavigationSplitView {
             VStack(alignment: .leading, spacing: 10) {
