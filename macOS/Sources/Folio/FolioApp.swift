@@ -115,19 +115,22 @@ struct FolioNote: Identifiable, Codable, Equatable {
     var isPinned = false
     var isArchived = false
     var isDeleted = false
+    var priority: String = "Normal"
     var createdAt: Date = .now
     var updatedAt: Date = .now
 
     init(id: UUID = UUID(), title: String, body: String, folder: String = "Notes",
          tags: [String] = [], isPinned: Bool = false, isArchived: Bool = false,
-         isDeleted: Bool = false, createdAt: Date = .now, updatedAt: Date = .now) {
+         isDeleted: Bool = false, priority: String = "Normal", createdAt: Date = .now, updatedAt: Date = .now) {
         self.id = id; self.title = title; self.body = body; self.folder = folder
         self.tags = tags; self.isPinned = isPinned; self.isArchived = isArchived
-        self.isDeleted = isDeleted; self.createdAt = createdAt; self.updatedAt = updatedAt
+        self.isDeleted = isDeleted
+        self.priority = ["Low", "Normal", "High", "Urgent"].contains(priority) ? priority : "Normal"
+        self.createdAt = createdAt; self.updatedAt = updatedAt
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, body, folder, tags, isPinned, isArchived, isDeleted, createdAt, updatedAt
+        case id, title, body, folder, tags, isPinned, isArchived, isDeleted, priority, createdAt, updatedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -140,6 +143,8 @@ struct FolioNote: Identifiable, Codable, Equatable {
         isPinned = try values.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
         isArchived = try values.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false
         isDeleted = try values.decodeIfPresent(Bool.self, forKey: .isDeleted) ?? false
+        let decodedPriority = try values.decodeIfPresent(String.self, forKey: .priority) ?? "Normal"
+        priority = ["Low", "Normal", "High", "Urgent"].contains(decodedPriority) ? decodedPriority : "Normal"
         createdAt = try values.decodeIfPresent(Date.self, forKey: .createdAt) ?? .now
         updatedAt = try values.decodeIfPresent(Date.self, forKey: .updatedAt) ?? .now
     }
@@ -300,7 +305,7 @@ final class NoteStore: ObservableObject {
                              body: body, folder: "Inbox")
         notes.insert(note, at: 0); selection = note.id; selectedFolder = "All Notes"; save()
     }
-    func update(_ id: UUID, title: String, body: String, folder: String, tags: String) {
+    func update(_ id: UUID, title: String, body: String, folder: String, tags: String, priority: String = "Normal") {
         guard let i = notes.firstIndex(where: { $0.id == id }) else { return }
         if notes[i].title != title || notes[i].body != body {
             let key = id.uuidString
@@ -311,6 +316,7 @@ final class NoteStore: ObservableObject {
         notes[i].title = title; notes[i].body = body
         notes[i].folder = folder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Notes" : folder
         notes[i].tags = tags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        notes[i].priority = ["Low", "Normal", "High", "Urgent"].contains(priority) ? priority : "Normal"
         notes[i].updatedAt = .now; save()
     }
     func restoreRevision(_ revision: FolioNote, for id: UUID) {
@@ -651,6 +657,7 @@ struct NoteEditor: View {
     @State private var bodyText = ""
     @State private var folder = "Notes"
     @State private var tags = ""
+    @State private var priority = "Normal"
     @State private var showRenderedPreview = false
     @State private var showingAttachmentPicker = false
     @State private var attachmentMessage: String?
@@ -670,7 +677,7 @@ struct NoteEditor: View {
                                 Button(version.updatedAt.formatted(date: .abbreviated, time: .shortened)) {
                                     store.restoreRevision(version, for: note.id)
                                     title = version.title; bodyText = version.body
-                                    folder = version.folder; tags = version.tags.joined(separator: ", ")
+                                    folder = version.folder; tags = version.tags.joined(separator: ", "); priority = version.priority
                                 }
                             }
                         }
@@ -680,6 +687,10 @@ struct NoteEditor: View {
             HStack {
                 TextField("Folder", text: $folder).textFieldStyle(.roundedBorder).frame(maxWidth: 180)
                 TextField("Tags, separated by commas", text: $tags).textFieldStyle(.roundedBorder)
+                Picker("Priority", selection: $priority) {
+                    Text("Low").tag("Low"); Text("Normal").tag("Normal")
+                    Text("High").tag("High"); Text("Urgent").tag("Urgent")
+                }.frame(width: 125)
                 Menu {
                     ForEach(store.notes.filter { $0.id != note.id && !$0.isDeleted && !$0.isArchived }.prefix(40)) { target in
                         Button(target.title.isEmpty ? "Untitled Note" : target.title) {
@@ -811,8 +822,8 @@ struct NoteEditor: View {
             catch { attachmentMessage = "Markdown export failed: \\(error.localizedDescription)" }
         }
     }
-    private func loadDraft() { title = note.title; bodyText = note.body; folder = note.folder; tags = note.tags.joined(separator: ", ") }
-    private func persist() { store.update(note.id, title: title, body: bodyText, folder: folder, tags: tags) }
+    private func loadDraft() { title = note.title; bodyText = note.body; folder = note.folder; tags = note.tags.joined(separator: ", "); priority = note.priority }
+    private func persist() { store.update(note.id, title: title, body: bodyText, folder: folder, tags: tags, priority: priority) }
 }
 
 enum BackupError: LocalizedError {

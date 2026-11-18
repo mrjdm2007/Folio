@@ -91,6 +91,7 @@ fun FolioScreen() {
     var editingBody by remember { mutableStateOf("") }
     var editingFolder by remember { mutableStateOf("Notes") }
     var editingTags by remember { mutableStateOf("") }
+    var editingPriority by remember { mutableStateOf("Normal") }
     var showRenderedPreview by remember { mutableStateOf(false) }
     var showLinkMenu by remember { mutableStateOf(false) }
     var attachedDocs by remember { mutableStateOf<List<FolioDocument>>(emptyList()) }
@@ -103,6 +104,7 @@ fun FolioScreen() {
             editingBody = first.body
             editingFolder = first.folder
             editingTags = first.tags.joinToString(", ")
+            editingPriority = first.priority
             attachedDocs = decodeDocuments(prefs.getString("documents_${first.id}", "[]") ?: "[]")
         }
     }
@@ -135,7 +137,7 @@ fun FolioScreen() {
                 selectedId?.let { id ->
                     notes.firstOrNull { it.id == id }?.let { note ->
                         editingTitle = note.title; editingBody = note.body
-                        editingFolder = note.folder; editingTags = note.tags.joinToString(", ")
+                        editingFolder = note.folder; editingTags = note.tags.joinToString(", "); editingPriority = note.priority
                     }
                 }
             }
@@ -153,7 +155,7 @@ fun FolioScreen() {
                         notes = loadNotes(prefs.getString("notes", "[]") ?: "[]")
                         selectedId?.let { id -> notes.firstOrNull { it.id == id }?.let { note ->
                             editingTitle = note.title; editingBody = note.body
-                            editingFolder = note.folder; editingTags = note.tags.joinToString(", ")
+                            editingFolder = note.folder; editingTags = note.tags.joinToString(", "); editingPriority = note.priority
                         } }
                         syncMessage = "Synced · $count notes"
                     }.onFailure { error -> syncMessage = "Peer unavailable · ${error.message ?: "retry later"}" }
@@ -441,7 +443,7 @@ fun FolioScreen() {
                                     notes = loadNotes(prefs.getString("notes", "[]") ?: "[]")
                                     selectedId?.let { id -> notes.firstOrNull { it.id == id }?.let { note ->
                                         editingTitle = note.title; editingBody = note.body
-                                        editingFolder = note.folder; editingTags = note.tags.joinToString(", ")
+                                        editingFolder = note.folder; editingTags = note.tags.joinToString(", "); editingPriority = note.priority
                                     } }
                                     syncMessage = "Sync complete · $count notes on this device"
                                 }.onFailure { error -> syncMessage = "Sync failed · ${error.message ?: "connection error"}" }
@@ -511,7 +513,7 @@ fun FolioScreen() {
                                 note = note, selected = selectedId == note.id,
                                 onSelect = {
                                     selectedId = note.id; editingTitle = note.title; editingBody = note.body
-                                    editingFolder = note.folder; editingTags = note.tags.joinToString(", ")
+                                    editingFolder = note.folder; editingTags = note.tags.joinToString(", "); editingPriority = note.priority
                                     attachedDocs = decodeDocuments(prefs.getString("documents_${note.id}", "[]") ?: "[]")
                                 },
                                 onPin = { persist(notes.map { if (it.id == note.id) it.copy(pinned = !it.pinned, updatedAt = System.currentTimeMillis()) else it }) },
@@ -547,6 +549,19 @@ fun FolioScreen() {
                             val tags = value.split(",").map { it.trim() }.filter { it.isNotEmpty() }
                             updateSelected { it.copy(tags = tags) }
                         }, modifier = Modifier.fillMaxWidth(), label = { Text("Tags (comma separated)") }, singleLine = true)
+                        var priorityMenu by remember { mutableStateOf(false) }
+                        Box {
+                            OutlinedButton(onClick = { priorityMenu = true }) { Text("Priority · $editingPriority") }
+                            DropdownMenu(expanded = priorityMenu, onDismissRequest = { priorityMenu = false }) {
+                                listOf("Low", "Normal", "High", "Urgent").forEach { priority ->
+                                    DropdownMenuItem(text = { Text(priority) }, onClick = {
+                                        editingPriority = priority
+                                        updateSelected { it.copy(priority = priority) }
+                                        priorityMenu = false
+                                    })
+                                }
+                            }
+                        }
                         Spacer(Modifier.height(6.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             Box {
@@ -806,7 +821,8 @@ private data class FolioNote(
     val folder: String = "Notes", val tags: List<String> = emptyList(),
     val archived: Boolean = false, val deleted: Boolean = false,
     val updatedAt: Long = System.currentTimeMillis(),
-    val createdAt: Long = updatedAt
+    val createdAt: Long = updatedAt,
+    val priority: String = "Normal"
 )
 private fun encodeBackup(notes: List<FolioNote>): String {
     val portable = JSONArray()
@@ -868,7 +884,8 @@ private fun loadNotes(raw: String, onCorrupt: (String) -> Unit = {}): List<Folio
             (0 until tagsJson.length()).map { tagsJson.optString(it) },
             item.optBoolean("archived"), item.optBoolean("deleted"),
             item.optLong("updatedAt", System.currentTimeMillis()),
-            item.optLong("createdAt", item.optLong("updatedAt", System.currentTimeMillis())))
+            item.optLong("createdAt", item.optLong("updatedAt", System.currentTimeMillis())),
+            item.optString("priority", "Normal").takeIf { it in setOf("Low", "Normal", "High", "Urgent") } ?: "Normal")
     }
     // Duplicate IDs break LazyColumn stable keys. Keep the newest valid local version.
     parsed.groupBy { it.id }.values.map { copies -> copies.maxBy { it.updatedAt } }
@@ -884,7 +901,8 @@ private fun encodeNotes(notes: List<FolioNote>): String {
         array.put(JSONObject().put("id", note.id).put("title", note.title).put("body", note.body)
             .put("pinned", note.pinned).put("folder", note.folder).put("tags", tags)
             .put("archived", note.archived).put("deleted", note.deleted)
-            .put("createdAt", note.createdAt).put("updatedAt", note.updatedAt))
+            .put("createdAt", note.createdAt).put("updatedAt", note.updatedAt)
+            .put("priority", note.priority))
     }
     return array.toString()
 }
