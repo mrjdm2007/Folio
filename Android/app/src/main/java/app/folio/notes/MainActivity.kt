@@ -252,23 +252,39 @@ private fun encodeBackup(notes: List<FolioNote>): String {
 }
 
 private fun decodeBackup(raw: String): List<FolioNote> {
-    val root = JSONObject(raw)
-    require(root.optInt("schemaVersion", -1) == 1) { "Unsupported Folio backup version." }
-    val array = root.optJSONArray("notes") ?: error("Backup has no notes.")
+    val now = System.currentTimeMillis()
+    val root = runCatching { JSONObject(raw) }.getOrNull()
+    val array = if (root != null) {
+        require(root.optInt("schemaVersion", -1) == 1) { "Unsupported Folio backup version." }
+        root.optJSONArray("notes") ?: error("Backup has no notes.")
+    } else {
+        // Backward compatibility with the original macOS JSON-array backup format.
+        runCatching { JSONArray(raw) }.getOrElse { error("This is not a valid Folio backup.") }
+    }
     return (0 until array.length()).map { index ->
         val item = array.getJSONObject(index)
         val tags = item.optJSONArray("tags") ?: JSONArray()
+        val createdAtMs = when {
+            item.has("createdAtMs") -> item.optLong("createdAtMs", now)
+            item.has("createdAt") -> (item.optDouble("createdAt") * 1000.0 + 978307200000.0).toLong()
+            else -> item.optLong("updatedAtMs", now)
+        }
+        val updatedAtMs = when {
+            item.has("updatedAtMs") -> item.optLong("updatedAtMs", now)
+            item.has("updatedAt") -> (item.optDouble("updatedAt") * 1000.0 + 978307200000.0).toLong()
+            else -> now
+        }
         FolioNote(
-            id = item.getString("id"),
+            id = item.optString("id").takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString(),
             title = item.optString("title", "Untitled Note"),
             body = item.optString("body", ""),
-            pinned = item.optBoolean("isPinned"),
+            pinned = item.optBoolean("isPinned", item.optBoolean("pinned")),
             folder = item.optString("folder", "Notes"),
             tags = (0 until tags.length()).map { tags.optString(it) },
-            archived = item.optBoolean("isArchived"),
-            deleted = item.optBoolean("isDeleted"),
-            updatedAt = item.optLong("updatedAtMs", System.currentTimeMillis()),
-            createdAt = item.optLong("createdAtMs", item.optLong("updatedAtMs", System.currentTimeMillis()))
+            archived = item.optBoolean("isArchived", item.optBoolean("archived")),
+            deleted = item.optBoolean("isDeleted", item.optBoolean("deleted")),
+            updatedAt = updatedAtMs,
+            createdAt = createdAtMs
         )
     }
 }
