@@ -115,14 +115,14 @@ fun FolioScreen() {
     fun newNote() {
         val note = FolioNote(UUID.randomUUID().toString(), "Untitled Note", "")
         persist(listOf(note) + notes); selectedId = note.id
-        editingTitle = note.title; editingBody = ""; editingFolder = "Notes"; editingTags = ""; section = "All Notes"
+        editingTitle = note.title; editingBody = ""; editingFolder = "Notes"; editingTags = ""; editingPriority = "Normal"; section = "All Notes"
     }
     fun updateSelected(transform: (FolioNote) -> FolioNote) {
         val id = selectedId ?: return
         val current = notes.firstOrNull { it.id == id } ?: return
         val changed = transform(current)
         if (current.title != changed.title || current.body != changed.body ||
-            current.folder != changed.folder || current.tags != changed.tags) appendRevision(prefs, current)
+            current.folder != changed.folder || current.tags != changed.tags || current.priority != changed.priority) appendRevision(prefs, current)
         val updated = changed.copy(updatedAt = System.currentTimeMillis())
         persist(notes.map { if (it.id == id) updated else it })
     }
@@ -361,7 +361,7 @@ fun FolioScreen() {
             folder = "Daily Notes")
         persist(listOf(note) + notes); selectedId = note.id
         editingTitle = note.title; editingBody = note.body; editingFolder = note.folder
-        editingTags = ""; section = "Daily Notes"
+        editingTags = ""; editingPriority = "Normal"; section = "Daily Notes"
     }
     val folders = notes.asSequence().filter { !it.deleted && !it.archived }
         .map { it.folder.trim().ifBlank { "Notes" } }.filterNot { it in setOf("All Notes", "Archive", "Recently Deleted") }.distinct().sorted().toList()
@@ -831,7 +831,8 @@ private fun encodeBackup(notes: List<FolioNote>): String {
         portable.put(JSONObject().put("id", note.id).put("title", note.title).put("body", note.body)
             .put("folder", note.folder).put("tags", tags).put("isPinned", note.pinned)
             .put("isArchived", note.archived).put("isDeleted", note.deleted)
-            .put("createdAtMs", note.createdAt).put("updatedAtMs", note.updatedAt))
+            .put("createdAtMs", note.createdAt).put("updatedAtMs", note.updatedAt)
+            .put("priority", note.priority))
     }
     return JSONObject().put("schemaVersion", 1).put("exportedAtMs", System.currentTimeMillis())
         .put("notes", portable).toString(2)
@@ -870,7 +871,8 @@ private fun decodeBackup(raw: String): List<FolioNote> {
             archived = item.optBoolean("isArchived", item.optBoolean("archived")),
             deleted = item.optBoolean("isDeleted", item.optBoolean("deleted")),
             updatedAt = updatedAtMs,
-            createdAt = createdAtMs
+            createdAt = createdAtMs,
+            priority = item.optString("priority", "Normal").takeIf { it in setOf("Low", "Normal", "High", "Urgent") } ?: "Normal"
         )
     }
 }

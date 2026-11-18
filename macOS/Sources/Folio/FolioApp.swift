@@ -307,7 +307,7 @@ final class NoteStore: ObservableObject {
     }
     func update(_ id: UUID, title: String, body: String, folder: String, tags: String, priority: String = "Normal") {
         guard let i = notes.firstIndex(where: { $0.id == id }) else { return }
-        if notes[i].title != title || notes[i].body != body {
+        if notes[i].title != title || notes[i].body != body || notes[i].priority != priority {
             let key = id.uuidString
             revisionHistory[key, default: []].insert(notes[i], at: 0)
             if revisionHistory[key, default: []].count > 20 { revisionHistory[key] = Array(revisionHistory[key, default: []].prefix(20)) }
