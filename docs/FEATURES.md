@@ -127,3 +127,14 @@ This is a first usable direct-sync pass, not the complete release protocol. It c
 - Android home-screen widget includes a Quick capture action. It creates a local Inbox note and opens Folio.
 - macOS adds a menu-bar Quick Capture panel for saving a title and body directly into the local Inbox.
 - Both capture paths use the same local note store and do not require sync or network access.
+
+
+## Daily notes and linked knowledge
+
+- Both clients provide a Daily Note action. It creates one dated note in the `Daily Notes` folder and reopens that day's note instead of creating duplicates.
+- Daily Notes start with Priorities, Notes and Tasks sections; checklist items are included in the existing Tasks inbox.
+- Both editors can insert title-based wiki references using `[[Note title]]`.
+- Editors show outgoing linked notes and incoming backlinks when matching notes exist, and allow navigation between them.
+- Editors show word count and an estimated reading time at 200 words per minute.
+
+**Linking limitation:** wiki references currently resolve by note title, not a stable note identifier. Renaming a linked note can therefore require updating its references. Full graph visualisation, orphan-note detection and automatic link repair are not yet implemented.

@@ -8,7 +8,9 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: folio-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Each commit gets its own queue slot; a burst of pushes must not silently replace
+  # the pending build for the current source revision.
+  group: folio-${{ github.workflow }}-${{ github.run_id }}
   # Preserve platform builds while follow-up feature commits arrive.
   cancel-in-progress: false
 jobs:
