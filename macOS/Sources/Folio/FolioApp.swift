@@ -210,7 +210,12 @@ final class NoteStore: ObservableObject {
         } else if let legacy = try? decoder.decode([FolioNote].self, from: data) {
             imported = legacy
         } else { throw BackupError.invalidFile }
-        var byID = Dictionary(uniqueKeysWithValues: notes.map { ($0.id, $0) })
+        // Avoid trapping on malformed backups containing duplicate IDs; keep the newest local copy.
+        var byID: [UUID: FolioNote] = [:]
+        for note in notes {
+            if let current = byID[note.id], current.updatedAt > note.updatedAt { continue }
+            byID[note.id] = note
+        }
         for note in imported {
             if let existing = byID[note.id], existing.updatedAt > note.updatedAt { continue }
             byID[note.id] = note
