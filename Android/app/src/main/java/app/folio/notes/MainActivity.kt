@@ -905,7 +905,7 @@ private fun MarkdownPreview(markdown: String, modifier: Modifier = Modifier) {
             } else if (clean.isBlank()) {
                 Spacer(Modifier.height(2.dp))
             } else if (clean.matches(Regex("^(---|___|\\*\\*\\*)$"))) {
-                HorizontalDivider()
+                Divider()
             } else {
                 val headingLevel = clean.takeWhile { it == '#' }.length
                 val isQuote = clean.startsWith("> ")
