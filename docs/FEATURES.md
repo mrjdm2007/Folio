@@ -5,11 +5,14 @@
 | Feature | macOS | Android |
 |---|---:|---:|
 | Create/edit/autosave, search, folders, tags | Yes | Yes |
+| Folder quick-filter chips | Sidebar navigation | Dynamic horizontal chips |
 | Pin, archive, trash, restore, duplicate | Yes | Yes |
 | Starter templates and Markdown shortcuts | Yes | Yes |
 | Share one note as Markdown | Yes | Yes |
 | Export full-library JSON backup | Yes | Yes |
 | Restore/merge full-library backup | Yes | Yes |
+| Deterministic duplicate-ID handling during backup restore | Yes | Yes |
+| Preserve malformed Android local JSON for manual recovery | N/A | Yes |
 | Shared versioned backup schema with millisecond timestamps | Yes | Yes |
 
 ## Not implemented / not production-ready
@@ -31,6 +34,15 @@ Backups use a shared versioned JSON envelope (`schemaVersion: 1`) with normalize
 
 Backups and local note stores are plaintext. Store backups privately. Do not store passwords, financial secrets or private documents in this prototype. Safe Folder and cloud sync are not implemented. Markdown shortcuts insert syntax into plain text; they are not a full rendered editor.
 
+
+## Reliability improvements in latest commits
+
+- Android now exposes existing user folders as quick-filter chips.
+- Android backup restore deterministically selects the newest record when an imported backup repeats a note ID.
+- Android preserves malformed local JSON in a separate recovery preference before the library is edited, rather than silently discarding the only copy.
+- macOS rejects backup envelopes with malformed note identifiers instead of generating replacement IDs, and trashing a note now updates its modification timestamp.
+
+These changes have been committed, but CI is still required to confirm compilation on both platforms.
 
 ## Cloud sync infrastructure added
 
