@@ -300,7 +300,7 @@ fun FolioScreen() {
                                 }) { Text("Remove") }
                             }
                         }
-                        Text(editingBody.split(Regex("\\\\s+")).count { it.isNotBlank() }.toString() + " words · " + editingBody.length + " characters",
+                        Text(editingBody.split(Regex("\\s+")).count { it.isNotBlank() }.toString() + " words · " + editingBody.length + " characters",
                         TextButton(onClick = {
                             val note = notes.firstOrNull { it.id == selectedId } ?: return@TextButton
                             val send = Intent(Intent.ACTION_SEND).apply {
