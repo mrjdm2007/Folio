@@ -22,9 +22,9 @@
 
 - Scanning and OCR (audio transcription intentionally excluded)
 - PDF import, annotation and export
-- Client UI for version history and conflict-aware merge
-- Client-side account sign-in, automatic cross-device sync worker and offline outbox
-- Client-side end-to-end encryption, secure key storage and recovery
+- Automatic LAN discovery, a durable revision outbox, attachment replication and background retry
+- Certificate-based mutual TLS / forward secrecy, device revocation and key rotation
+- Robust common-ancestor conflict resolution and full two-device integration tests
 - Safe Folder with biometric unlock and password fallback
 - macOS WidgetKit extension, share extensions, quick capture and menu-bar capture remain outstanding
 - Accessibility/localization audit and automated UI/integration tests
@@ -33,7 +33,7 @@
 
 Backups use a shared versioned JSON envelope (`schemaVersion: 1`) with normalized field names and Unix-millisecond timestamps. Restore merges by stable note ID and prefers the newest `updatedAtMs` record. The macOS importer also accepts its older JSON-array backup format. Android imports the shared envelope.
 
-Backups and local note stores are plaintext. Store backups privately. Do not store passwords, financial secrets or private documents in this prototype. Safe Folder and cloud sync are not implemented. Markdown shortcuts insert syntax into plain text; they are not a full rendered editor.
+Backups and local note stores are plaintext. Store backups privately. Do not store passwords, financial secrets or private documents in this prototype. Safe Folder is not implemented. Markdown shortcuts insert syntax into plain text; they are not a full rendered editor. The first peer-sync pass encrypts network payloads, but does not encrypt the local note database.
 
 
 ## Reliability improvements in latest commits
@@ -62,7 +62,7 @@ The Supabase migration `20261118000100_folio_encrypted_sync.sql` now defines per
 
 ## Remaining release blockers
 
-- **Cloud sync is not active yet.** The repository has Supabase encrypted storage/RLS and a hardened revision-checked write RPC, but no native sign-in, key setup/recovery, client encryption, pull/push worker, offline queue or conflict UI. The Supabase project URL and publishable key must be configured and migrations deployed before live sync can be tested. Never use a service-role key in either app.
+- **Peer sync is in its first release pass.** It transfers notes and metadata over an encrypted direct connection, but still needs discovery, stronger transport identity/forward secrecy, attachment/history replication, durable revision tracking and independent security testing. Supabase is dormant and not used for this peer path.
 - **Document management is partial.** Android notes can attach PDF, image, text and DOCX documents through the system document picker, reopen them and remove links. Attachments remain external content URIs with persisted read permission; they are not copied into Folio, included in JSON backups, available on macOS, or synchronized. A complete cross-platform document library still needs app-managed storage, rename, backup semantics, preview/share polish and encrypted sync.
 - macOS WidgetKit needs a Widget Extension target; the current macOS package is a Swift Package executable, not an Xcode project with an extension target.
 
@@ -71,9 +71,16 @@ The Supabase migration `20261118000100_folio_encrypted_sync.sql` now defines per
 
 - Android now offers interactive sorting by recently updated, oldest first, title A–Z, and title Z–A. Pinned notes remain grouped ahead of unpinned notes in every sort mode.
 
-## Peer-to-peer sync direction
+## Peer-to-peer sync — first implementation
 
-Folio's target sync architecture is device-to-device: macOS and Android are equal peers, with automatic discovery and a sync attempt whenever the app opens. Same-network connections are the default; remote sync can use a private VPN managed by the user. No external cloud note-storage service is required. The protocol, pairing, encryption, offline queue, conflict, tombstone, and attachment requirements are specified in [P2P_SYNC_PROTOCOL.md](P2P_SYNC_PROTOCOL.md). This is a design contract only; native peer sync is not yet implemented and must not be presented as working.
+- Both clients can listen and initiate a direct TCP connection on port 47831.
+- Pairing uses a high-entropy shared key copied out of band. Android stores it in Android Keystore-backed encrypted preferences; macOS stores it in Keychain.
+- Each framed request and response is protected with AES-256-GCM; the key is derived from the shared secret using PBKDF2-HMAC-SHA256 with a fresh salt.
+- Enter the other device's IP address once. The apps save it and attempt sync on app open; both also provide Sync Now.
+- Note content and metadata replicate in both directions. Divergent versions are retained as deterministic copies in the Sync Conflicts folder.
+- No external cloud note-storage service is involved.
+
+This is a first usable direct-sync pass, not the complete release protocol. It currently requires manual IP entry and does not replicate attachments or version history. It has no certificate-based mutual TLS/forward secrecy, automatic LAN discovery, durable revision outbox, background retry while closed, device revocation, or audited two-device test suite. See [P2P_SYNC_PROTOCOL.md](P2P_SYNC_PROTOCOL.md) for the exact boundaries and security caveats.
 
 
 ## Library improvements (latest branch update)
