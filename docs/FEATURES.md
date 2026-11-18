@@ -86,6 +86,15 @@ This is a first usable direct-sync pass, not the complete release protocol. It c
 ## Library improvements (latest branch update)
 
 - macOS and Android both provide note sorting by recent update, oldest first, and title order while keeping pinned notes grouped first.
-- Android stores up to 20 previous note snapshots per note and provides a version-history restore dialog.
+- Android stores up to 50 throttled note snapshots per note and provides a version-history restore dialog.
 - macOS stores up to 20 previous note revisions per note and exposes a Version History menu in the editor.
 - These histories are local-only at present. They are not yet replicated between devices; P2P sync must include revision history and attachment manifests before it can be considered complete.
+
+
+## Latest quality and interface pass
+
+- Android note rows now use a selected-card treatment with a compact contextual actions menu instead of permanently displaying several destructive/action buttons on every row.
+- Backup and restore actions are grouped with settings rather than consuming permanent space in the notes workspace.
+- Android note editing now captures throttled local revision snapshots (up to 50 per note) and preserves the current version before a history restore.
+- macOS note editor now exposes its existing local attachment store, including open and remove actions.
+- macOS CI now packages a launchable `.app` bundle with a generated Folio icon and uploads a ZIP artifact. The app is not code-signed or notarized by this workflow.
