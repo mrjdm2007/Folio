@@ -125,6 +125,7 @@ fun FolioScreen() {
         val inSection = when (section) {
             "Archive" -> note.archived && !note.deleted
             "Recently Deleted" -> note.deleted
+            "Pinned" -> note.pinned && !note.archived && !note.deleted
             "All Notes" -> !note.archived && !note.deleted
             else -> note.folder.trim().ifBlank { "Notes" } == section && !note.archived && !note.deleted
         }
@@ -156,7 +157,7 @@ fun FolioScreen() {
             backupStatus?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("All Notes", "Archive", "Recently Deleted").forEach { name ->
+                listOf("All Notes", "Pinned", "Archive", "Recently Deleted").forEach { name ->
                     FilterChip(selected = section == name, onClick = { section = name }, label = { Text(name) })
                 }
             }
