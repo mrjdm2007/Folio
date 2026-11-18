@@ -17,8 +17,6 @@ import androidx.compose.ui.unit.dp
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class FolioNote(val id: String, val title: String, val body: String, val pinned: Boolean = false)
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,13 +29,12 @@ fun FolioTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = darkColorScheme(), content = content)
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FolioScreen() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("folio_local", android.content.Context.MODE_PRIVATE) }
-    var notes by remember {
-        mutableStateOf(loadNotes(prefs.getString("notes", "[]") ?: "[]"))
-    }
+    var notes by remember { mutableStateOf(loadNotes(prefs.getString("notes", "[]") ?: "[]")) }
     var selectedId by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
     var editingTitle by remember { mutableStateOf("") }
@@ -63,9 +60,7 @@ fun FolioScreen() {
         topBar = {
             TopAppBar(
                 title = { Text("Folio", style = MaterialTheme.typography.headlineMedium) },
-                actions = {
-                    IconButton(onClick = { newNote() }) { Icon(Icons.Default.Add, "New note") }
-                }
+                actions = { IconButton(onClick = { newNote() }) { Icon(Icons.Default.Add, "New note") } }
             )
         }
     ) { padding ->
@@ -94,8 +89,8 @@ fun FolioScreen() {
                     }
                 }
             }
+            Spacer(Modifier.width(12.dp))
             if (selectedId != null) {
-                Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1.1f)) {
                     OutlinedTextField(
                         value = editingTitle,
@@ -126,6 +121,8 @@ fun FolioScreen() {
         }
     }
 }
+
+private data class FolioNote(val id: String, val title: String, val body: String, val pinned: Boolean = false)
 
 private fun loadNotes(raw: String): List<FolioNote> = try {
     val array = JSONArray(raw)

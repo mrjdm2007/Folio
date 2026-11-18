@@ -20,11 +20,7 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Android assemble (requires Gradle wrapper)
-        run: |
-          if [ -f Android/gradlew ]; then
-            cd Android && ./gradlew :app:assembleDebug
-          else
-            echo "Gradle wrapper not yet committed; open Android project in Android Studio to generate it."
-            exit 1
-          fi
+        with:
+          gradle-version: '8.9'
+      - name: Android assemble
+        run: gradle -p Android :app:assembleDebug

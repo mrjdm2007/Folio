@@ -3,9 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "Folio",
-    platforms: [.macOS(.v13)],
+    platforms: [.macOS(.v14)],
     products: [.executable(name: "Folio", targets: ["Folio"])],
-    targets: [
-        .executableTarget(name: "Folio", path: "Sources/Folio")
-    ]
+    targets: [.executableTarget(name: "Folio", path: "Sources/Folio")]
 )
