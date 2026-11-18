@@ -235,7 +235,8 @@ private data class FolioNote(
     val id: String, val title: String, val body: String, val pinned: Boolean = false,
     val folder: String = "Notes", val tags: List<String> = emptyList(),
     val archived: Boolean = false, val deleted: Boolean = false,
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    val createdAt: Long = updatedAt
 )
 private fun encodeBackup(notes: List<FolioNote>): String {
     val portable = JSONArray()
@@ -244,7 +245,7 @@ private fun encodeBackup(notes: List<FolioNote>): String {
         portable.put(JSONObject().put("id", note.id).put("title", note.title).put("body", note.body)
             .put("folder", note.folder).put("tags", tags).put("isPinned", note.pinned)
             .put("isArchived", note.archived).put("isDeleted", note.deleted)
-            .put("createdAtMs", note.updatedAt).put("updatedAtMs", note.updatedAt))
+            .put("createdAtMs", note.createdAt).put("updatedAtMs", note.updatedAt))
     }
     return JSONObject().put("schemaVersion", 1).put("exportedAtMs", System.currentTimeMillis())
         .put("notes", portable).toString(2)
@@ -266,7 +267,8 @@ private fun decodeBackup(raw: String): List<FolioNote> {
             tags = (0 until tags.length()).map { tags.optString(it) },
             archived = item.optBoolean("isArchived"),
             deleted = item.optBoolean("isDeleted"),
-            updatedAt = item.optLong("updatedAtMs", System.currentTimeMillis())
+            updatedAt = item.optLong("updatedAtMs", System.currentTimeMillis()),
+            createdAt = item.optLong("createdAtMs", item.optLong("updatedAtMs", System.currentTimeMillis()))
         )
     }
 }
@@ -279,7 +281,8 @@ private fun loadNotes(raw: String): List<FolioNote> = try {
             item.optBoolean("pinned"), item.optString("folder", "Notes"),
             (0 until tagsJson.length()).map { tagsJson.optString(it) },
             item.optBoolean("archived"), item.optBoolean("deleted"),
-            item.optLong("updatedAt", System.currentTimeMillis()))
+            item.optLong("updatedAt", System.currentTimeMillis()),
+            item.optLong("createdAt", item.optLong("updatedAt", System.currentTimeMillis())))
     }
 } catch (_: Exception) { emptyList() }
 private fun encodeNotes(notes: List<FolioNote>): String {
@@ -288,7 +291,8 @@ private fun encodeNotes(notes: List<FolioNote>): String {
         val tags = JSONArray().apply { note.tags.forEach { put(it) } }
         array.put(JSONObject().put("id", note.id).put("title", note.title).put("body", note.body)
             .put("pinned", note.pinned).put("folder", note.folder).put("tags", tags)
-            .put("archived", note.archived).put("deleted", note.deleted).put("updatedAt", note.updatedAt))
+            .put("archived", note.archived).put("deleted", note.deleted)
+            .put("createdAt", note.createdAt).put("updatedAt", note.updatedAt))
     }
     return array.toString()
 }
