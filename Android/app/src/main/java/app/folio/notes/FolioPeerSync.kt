@@ -56,19 +56,32 @@ object FolioPeerSync {
         startListener(context)
     }
 
+    @Synchronized
     fun startListener(context: Context) {
         if (pairingSecret(context).length < 32 || listener != null) return
+
+        // Bind before starting the worker so repeated app/resume calls cannot
+        // race and create multiple accept loops for the same port.
+        val server = try {
+            ServerSocket(PORT).apply { soTimeout = 0 }
+        } catch (_: Exception) {
+            return
+        }
+        listener = server
         thread(name = "Folio-P2P-listener", isDaemon = true) {
             try {
-                ServerSocket(PORT).use { server ->
-                    listener = server
-                    while (!server.isClosed) {
-                        val socket = server.accept()
-                        thread(name = "Folio-P2P-peer", isDaemon = true) { handlePeer(context, socket) }
-                    }
+                while (!server.isClosed) {
+                    val socket = server.accept()
+                    thread(name = "Folio-P2P-peer", isDaemon = true) { handlePeer(context, socket) }
                 }
             } catch (_: Exception) {
-            } finally { listener = null }
+                // Listener shutdown or a bind/accept failure leaves local notes usable.
+            } finally {
+                synchronized(this) {
+                    if (listener === server) listener = null
+                }
+                runCatching { server.close() }
+            }
         }
     }
 
