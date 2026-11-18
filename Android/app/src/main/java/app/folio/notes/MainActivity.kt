@@ -156,6 +156,8 @@ fun FolioScreen() {
                 OutlinedButton(onClick = { importBackup.launch(arrayOf("application/json", "text/json")) }) { Text("Restore backup") }
             }
             backupStatus?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
+            Text(filtered.size.toString() + " notes shown · " + notes.count { it.pinned && !it.archived && !it.deleted }.toString() + " pinned",
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("All Notes", "Pinned", "Archive", "Recently Deleted").forEach { name ->
