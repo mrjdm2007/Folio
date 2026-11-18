@@ -2,7 +2,10 @@ package app.folio.notes
 
 import android.os.Bundle
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -58,6 +61,28 @@ fun FolioScreen() {
         val id = selectedId ?: return
         persist(notes.map { if (it.id == id) transform(it).copy(updatedAt = System.currentTimeMillis()) else it })
     }
+    var backupStatus by remember { mutableStateOf<String?>(null) }
+    val exportBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
+        if (uri != null) runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { it.write(encodeBackup(notes).toByteArray(Charsets.UTF_8)) }
+                ?: error("Could not open the selected destination.")
+        }.onSuccess { backupStatus = "Backup exported." }
+            .onFailure { backupStatus = it.message ?: "Backup export failed." }
+    }
+    val importBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) runCatching {
+            val raw = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                ?: error("Could not read the selected file.")
+            val imported = decodeBackup(raw)
+            val existingById = notes.associateBy { it.id }
+            val merged = imported.associateBy { it.id }.map { (id, candidate) ->
+                val existing = existingById[id]
+                if (existing != null && existing.updatedAt > candidate.updatedAt) existing else candidate
+            } + notes.filter { local -> imported.none { it.id == local.id } }
+            persist(merged.sortedByDescending { it.updatedAt })
+        }.onSuccess { backupStatus = "Backup restored and merged." }
+            .onFailure { backupStatus = it.message ?: "Invalid backup file." }
+    }
     fun duplicate(note: FolioNote) {
         val copy = note.copy(id = UUID.randomUUID().toString(), title = note.title + " (Copy)",
             pinned = false, archived = false, deleted = false, updatedAt = System.currentTimeMillis())
@@ -105,6 +130,11 @@ fun FolioScreen() {
             OutlinedTextField(value = query, onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(), placeholder = { Text("Search titles, text and tags") },
                 leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { exportBackup.launch("Folio-Backup.json") }) { Text("Export backup") }
+                OutlinedButton(onClick = { importBackup.launch(arrayOf("application/json", "text/json")) }) { Text("Restore backup") }
+            }
+            backupStatus?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("All Notes", "Archive", "Recently Deleted").forEach { name ->
@@ -207,6 +237,16 @@ private data class FolioNote(
     val archived: Boolean = false, val deleted: Boolean = false,
     val updatedAt: Long = System.currentTimeMillis()
 )
+private fun encodeBackup(notes: List<FolioNote>): String =
+    JSONObject().put("schemaVersion", 1).put("exportedAt", System.currentTimeMillis())
+        .put("notes", JSONArray(encodeNotes(notes))).toString(2)
+
+private fun decodeBackup(raw: String): List<FolioNote> {
+    val root = JSONObject(raw)
+    require(root.optInt("schemaVersion", -1) == 1) { "Unsupported Folio backup version." }
+    val array = root.optJSONArray("notes") ?: error("Backup has no notes.")
+    return loadNotes(array.toString())
+}
 private fun loadNotes(raw: String): List<FolioNote> = try {
     val array = JSONArray(raw)
     (0 until array.length()).map { i ->

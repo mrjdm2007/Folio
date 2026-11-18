@@ -1,38 +1,31 @@
 # Folio feature implementation status
 
-This file separates features present in the prototype from planned work. A feature is not complete merely because it appears in the architecture.
-
 ## Implemented local features
 
 | Feature | macOS | Android |
 |---|---:|---:|
-| Create, edit and autosave notes | Yes | Yes |
-| Local persistence | JSON in Application Support | SharedPreferences JSON |
-| Search titles, body and tags | Yes | Yes |
-| User-created folders and tags | Yes | Yes |
-| Pin / unpin | Yes | Yes |
-| Archive and Recently Deleted | Yes | Yes |
-| Restore deleted notes | Yes | Yes |
-| Duplicate a note | Yes | Yes |
-| Starter templates (class, meeting, journal, project brief) | Yes | Yes |
-| Markdown authoring shortcuts | Yes | Yes |
-| Share/export one note as Markdown text | Yes | Yes |
+| Create/edit/autosave, search, folders, tags | Yes | Yes |
+| Pin, archive, trash, restore, duplicate | Yes | Yes |
+| Starter templates and Markdown shortcuts | Yes | Yes |
+| Share one note as Markdown | Yes | Yes |
+| Export full-library JSON backup | Yes | Yes |
+| Restore/merge full-library backup | Yes | Yes |
 
 ## Not implemented / not production-ready
 
-- Full rich-text rendering and structured blocks (tables, code highlighting, math rendering, callouts)
-- Image, file and audio attachments; scanning and OCR
+- Full rendered rich-text blocks (tables, code highlighting, math, callouts)
+- Image/file/audio attachments, scanning and OCR
 - PDF import, annotation and export
 - Handwriting and drawing canvas
 - Version history and conflict-aware merge
-- Cross-device account, cloud sync and attachment transfer
+- Automatic cross-device account and cloud sync
 - End-to-end encryption, secure key storage and recovery
 - Safe Folder with biometric unlock and password fallback
 - Widgets, share extensions, quick capture and menu-bar capture
 - Accessibility/localization audit and automated UI/integration tests
 
-## Compatibility and security notes
+## Backup and security notes
 
-Android decoding supplies defaults for newly introduced fields so the initial prototype's notes remain readable. macOS decoding supplies defaults for newer note fields. Keep a backup of local data before testing development builds.
+Backups use versioned JSON (`schemaVersion: 1`). Restore merges by stable note ID and prefers the newest `updatedAt` record. The macOS importer also accepts legacy JSON-array backups. Android imports the versioned envelope. Date serialization is still platform-native, so this is not yet a fully normalized shared interchange codec.
 
-Local JSON and SharedPreferences are not encrypted. Do not store passwords, financial secrets or private documents in this prototype. Safe Folder and cloud sync are not implemented. Markdown is stored as plain text; the shortcuts insert Markdown syntax but do not provide a full rendered rich-text editor.
+Backups and local note stores are plaintext. Store backups privately. Do not store passwords, financial secrets or private documents in this prototype. Safe Folder and cloud sync are not implemented. Markdown shortcuts insert syntax into plain text; they are not a full rendered editor.

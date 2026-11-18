@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import UniformTypeIdentifiers
 
 @main
 struct FolioApp: App {
@@ -18,6 +19,20 @@ struct FolioApp: App {
     }
 }
 
+struct FolioBackupEnvelope: Codable {
+    var schemaVersion: Int = 1
+    var exportedAt: Date = .now
+    var notes: [FolioNote]
+}
+struct FolioBackupDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+    var data: Data
+    init(data: Data = Data()) { self.data = data }
+    init(configuration: ReadConfiguration) throws { data = configuration.file.regularFileContents ?? Data() }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}
 struct FolioNote: Identifiable, Codable, Equatable {
     var id: UUID = UUID()
     var title: String
@@ -145,6 +160,29 @@ final class NoteStore: ObservableObject {
     }
     func permanentlyDelete(_ note: FolioNote) {
         notes.removeAll { $0.id == note.id }; if selection == note.id { selection = nil }; save()
+    }
+    func makeBackup() -> FolioBackupDocument {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return FolioBackupDocument(data: (try? encoder.encode(FolioBackupEnvelope(notes: notes))) ?? Data())
+    }
+    func restoreBackup(_ data: Data) throws {
+        let decoder = JSONDecoder()
+        let imported: [FolioNote]
+        if let envelope = try? decoder.decode(FolioBackupEnvelope.self, from: data) {
+            guard envelope.schemaVersion == 1 else { throw BackupError.unsupportedVersion }
+            imported = envelope.notes
+        } else if let legacy = try? decoder.decode([FolioNote].self, from: data) {
+            imported = legacy
+        } else { throw BackupError.invalidFile }
+        var byID = Dictionary(uniqueKeysWithValues: notes.map { ($0.id, $0) })
+        for note in imported {
+            if let existing = byID[note.id], existing.updatedAt > note.updatedAt { continue }
+            byID[note.id] = note
+        }
+        notes = Array(byID.values).sorted { $0.updatedAt > $1.updatedAt }
+        selection = notes.first(where: { !$0.isDeleted && !$0.isArchived })?.id
+        save()
     }
     private func load() {
         guard let data = try? Data(contentsOf: fileURL) else { return }
@@ -275,14 +313,36 @@ struct NoteEditor: View {
     private func persist() { store.update(note.id, title: title, body: bodyText, folder: folder, tags: tags) }
 }
 
+enum BackupError: LocalizedError {
+    case invalidFile, unsupportedVersion
+    var errorDescription: String? {
+        switch self {
+        case .invalidFile: return "This file is not a valid Folio backup."
+        case .unsupportedVersion: return "This backup was created by a newer Folio version."
+        }
+    }
+}
 struct SettingsView: View {
     @EnvironmentObject private var store: NoteStore
+    @State private var backupDocument = FolioBackupDocument()
+    @State private var showingExporter = false
+    @State private var showingImporter = false
+    @State private var backupMessage: String?
     var body: some View {
         Form {
             Section("Folio") {
                 Text("Folio for macOS")
                 Text("Local notes are stored in Application Support/Folio.").foregroundStyle(.secondary)
                 Text("\(store.notes.count) notes stored locally")
+            }
+            Section("Backup and restore") {
+                HStack {
+                    Button("Export Folio Backup") { backupDocument = store.makeBackup(); showingExporter = true }
+                    Button("Restore from Backup") { showingImporter = true }
+                }
+                Text("Backups include all notes and merge by stable note ID, keeping the newer copy.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if let backupMessage { Text(backupMessage).font(.caption) }
             }
             Section("Available in this build") {
                 Text("Folders, tags, full-text search, pinning, archive, recently deleted and autosave.")
@@ -291,5 +351,19 @@ struct SettingsView: View {
                 Text("Cloud sync, end-to-end encryption, biometric Safe Folder, rich-text blocks, attachments, PDF annotation, audio capture and handwriting.")
             }
         }.padding(20).frame(width: 460)
+            .fileExporter(isPresented: $showingExporter, document: backupDocument,
+                          contentType: .json, defaultFilename: "Folio-Backup.json") { result in
+                if case .success = result { backupMessage = "Backup exported." }
+                else { backupMessage = "Backup export failed." }
+            }
+            .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.json]) { result in
+                do {
+                    let url = try result.get()
+                    let access = url.startAccessingSecurityScopedResource()
+                    defer { if access { url.stopAccessingSecurityScopedResource() } }
+                    try store.restoreBackup(Data(contentsOf: url))
+                    backupMessage = "Backup restored and merged."
+                } catch { backupMessage = error.localizedDescription }
+            }
     }
 }
