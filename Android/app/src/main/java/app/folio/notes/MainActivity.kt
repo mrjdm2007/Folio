@@ -8,9 +8,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
@@ -75,7 +77,8 @@ fun FolioScreen() {
                 ?: error("Could not read the selected file.")
             val imported = decodeBackup(raw)
             val existingById = notes.associateBy { it.id }
-            val merged = imported.associateBy { it.id }.map { (id, candidate) ->
+            val importedById = imported.groupBy { it.id }.mapValues { (_, copies) -> copies.maxBy { it.updatedAt } }
+            val merged = importedById.map { (id, candidate) ->
                 val existing = existingById[id]
                 if (existing != null && existing.updatedAt > candidate.updatedAt) existing else candidate
             } + notes.filter { local -> imported.none { it.id == local.id } }
@@ -102,6 +105,8 @@ fun FolioScreen() {
         persist(listOf(note) + notes); selectedId = note.id
         editingTitle = note.title; editingBody = note.body; editingFolder = "Notes"; editingTags = ""; section = "All Notes"
     }
+    val folders = notes.asSequence().filter { !it.deleted && !it.archived }
+        .map { it.folder.trim().ifBlank { "Notes" } }.distinct().sorted().toList()
     val filtered = notes.filter { note ->
         val inSection = when (section) {
             "Archive" -> note.archived && !note.deleted
@@ -142,6 +147,16 @@ fun FolioScreen() {
                 }
             }
             Spacer(Modifier.height(6.dp))
+            if (folders.isNotEmpty()) {
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    folders.forEach { folder ->
+                        FilterChip(selected = section == folder, onClick = { section = folder },
+                            label = { Text(folder) })
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+            }
             Row(Modifier.weight(1f)) {
                 Column(Modifier.weight(0.9f)) {
                     LazyColumn {
