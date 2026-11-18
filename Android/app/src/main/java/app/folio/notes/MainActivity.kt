@@ -36,7 +36,21 @@ class MainActivity : ComponentActivity() {
 }
 @Composable
 fun FolioTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = darkColorScheme(), content = content)
+    val colors = darkColorScheme(
+        primary = androidx.compose.ui.graphics.Color(0xFFB9F36A),
+        onPrimary = androidx.compose.ui.graphics.Color(0xFF17200C),
+        secondary = androidx.compose.ui.graphics.Color(0xFFFFB85C),
+        onSecondary = androidx.compose.ui.graphics.Color(0xFF261706),
+        tertiary = androidx.compose.ui.graphics.Color(0xFF8DD8A2),
+        background = androidx.compose.ui.graphics.Color(0xFF0A0D0B),
+        onBackground = androidx.compose.ui.graphics.Color(0xFFE7E9E2),
+        surface = androidx.compose.ui.graphics.Color(0xFF131815),
+        onSurface = androidx.compose.ui.graphics.Color(0xFFE7E9E2),
+        surfaceVariant = androidx.compose.ui.graphics.Color(0xFF202820),
+        onSurfaceVariant = androidx.compose.ui.graphics.Color(0xFFADB7A8),
+        outline = androidx.compose.ui.graphics.Color(0xFF465344)
+    )
+    MaterialTheme(colorScheme = colors, content = content)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -247,7 +261,15 @@ fun FolioScreen() {
     }
 
     Scaffold(topBar = {
-        TopAppBar(title = { Text("Folio", style = MaterialTheme.typography.headlineMedium) },
+        TopAppBar(title = { Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.size(30.dp).background(MaterialTheme.colorScheme.primary, androidx.compose.foundation.shape.RoundedCornerShape(8.dp)), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                    Text("F", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.titleLarge)
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                    Text("FOLIO", style = MaterialTheme.typography.titleLarge, letterSpacing = 2.sp)
+                    Text("PERSONAL LIBRARY", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary, letterSpacing = 1.2.sp)
+                }
+            } },
             actions = {
                 var showTemplates by remember { mutableStateOf(false) }
                 IconButton(onClick = { showTemplates = true }) { Icon(Icons.Default.Add, "New note or template") }
