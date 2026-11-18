@@ -383,6 +383,7 @@ fun FolioScreen() {
             "Oldest first" -> pinnedFirst.sortedBy { it.updatedAt }
             "Title A–Z" -> pinnedFirst.sortedBy { it.title.lowercase() }
             "Title Z–A" -> pinnedFirst.sortedByDescending { it.title.lowercase() }
+            "Priority" -> pinnedFirst.sortedByDescending { mapOf("Low" to 1, "Normal" to 2, "High" to 3, "Urgent" to 4)[it.priority] ?: 2 }
             else -> pinnedFirst.sortedByDescending { it.updatedAt }
         }
     }
@@ -467,7 +468,7 @@ fun FolioScreen() {
                 Box {
                     TextButton(onClick = { showSortMenu = true }) { Text("Sort: $sortMode") }
                     DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
-                        listOf("Recently updated", "Recently created", "Oldest first", "Title A–Z", "Title Z–A").forEach { option ->
+                        listOf("Recently updated", "Recently created", "Oldest first", "Title A–Z", "Title Z–A", "Priority").forEach { option ->
                             DropdownMenuItem(text = { Text(option) }, onClick = { sortMode = option; showSortMenu = false })
                         }
                     }

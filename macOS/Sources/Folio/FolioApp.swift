@@ -290,6 +290,9 @@ final class NoteStore: ObservableObject {
             case "Oldest first": return left.updatedAt < right.updatedAt
             case "Title A–Z": return left.title.localizedStandardCompare(right.title) == .orderedAscending
             case "Title Z–A": return left.title.localizedStandardCompare(right.title) == .orderedDescending
+            case "Priority":
+                let ranks = ["Low": 1, "Normal": 2, "High": 3, "Urgent": 4]
+                return (ranks[left.priority] ?? 2) > (ranks[right.priority] ?? 2)
             default: return left.updatedAt > right.updatedAt
             }
         }
@@ -599,7 +602,7 @@ struct FolioRootView: View {
                             .font(.caption)
                     }.help("Filter notes by tag")
                     Menu {
-                        ForEach(["Recently updated", "Recently created", "Oldest first", "Title A–Z", "Title Z–A"], id: \.self) { mode in
+                        ForEach(["Recently updated", "Recently created", "Oldest first", "Title A–Z", "Title Z–A", "Priority"], id: \.self) { mode in
                             Button { store.sortMode = mode } label: {
                                 if store.sortMode == mode { Label(mode, systemImage: "checkmark") } else { Text(mode) }
                             }
