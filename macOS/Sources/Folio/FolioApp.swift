@@ -521,7 +521,8 @@ struct FolioRootView: View {
             } else {
                 ContentUnavailableView("Select a note", systemImage: "note.text", description: Text("Create a note or choose one from the list."))
             }
-        }
+        }.preferredColorScheme(.dark)
+            .tint(Color(red: 0.725, green: 0.953, blue: 0.416))
     }
     private func icon(for item: String) -> String {
         switch item { case "All Notes": return "note.text"; case "Archive": return "archivebox"; case "Recently Deleted": return "trash"; default: return "folder" }
