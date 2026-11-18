@@ -57,6 +57,8 @@ fun FolioScreen() {
     var editingFolder by remember { mutableStateOf("Notes") }
     var editingTags by remember { mutableStateOf("") }
     var showRenderedPreview by remember { mutableStateOf(false) }
+    var attachedDocs by remember { mutableStateOf<List<FolioDocument>>(emptyList()) }
+    var attachmentTargetId by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
         val first = notes.firstOrNull { !it.deleted && !it.archived }
         if (first != null && selectedId == null) {
@@ -87,6 +89,19 @@ fun FolioScreen() {
                 ?: error("Could not open the selected destination.")
         }.onSuccess { backupStatus = "Backup exported." }
             .onFailure { backupStatus = it.message ?: "Backup export failed." }
+    }
+    val importAttachment = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        val target = attachmentTargetId
+        if (uri != null && target != null) runCatching {
+            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            } ?: "Attached document"
+            val current = decodeDocuments(prefs.getString("documents_$target", "[]") ?: "[]")
+            val next = current + FolioDocument(uri.toString(), name)
+            prefs.edit().putString("documents_$target", encodeDocuments(next)).apply()
+            if (selectedId == target) attachedDocs = next
+        }.onFailure { backupStatus = it.message ?: "Could not attach document." }
     }
     val importBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) runCatching {
@@ -391,3 +406,16 @@ private fun encodeNotes(notes: List<FolioNote>): String {
     }
     return array.toString()
 }
+
+private data class FolioDocument(val uri: String, val name: String)
+private fun encodeDocuments(items: List<FolioDocument>): String = JSONArray().apply {
+    items.forEach { put(JSONObject().put("uri", it.uri).put("name", it.name)) }
+}.toString()
+private fun decodeDocuments(raw: String): List<FolioDocument> = runCatching {
+    val array = JSONArray(raw)
+    (0 until array.length()).mapNotNull { i ->
+        val item = array.optJSONObject(i) ?: return@mapNotNull null
+        val uri = item.optString("uri").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+        FolioDocument(uri, item.optString("name", "Attached document"))
+    }
+}.getOrDefault(emptyList())
