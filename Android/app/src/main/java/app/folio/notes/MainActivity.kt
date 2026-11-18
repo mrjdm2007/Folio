@@ -120,7 +120,7 @@ fun FolioScreen() {
         editingTitle = note.title; editingBody = note.body; editingFolder = "Notes"; editingTags = ""; section = "All Notes"
     }
     val folders = notes.asSequence().filter { !it.deleted && !it.archived }
-        .map { it.folder.trim().ifBlank { "Notes" } }.distinct().sorted().toList()
+        .map { it.folder.trim().ifBlank { "Notes" } }.filterNot { it in setOf("All Notes", "Archive", "Recently Deleted") }.distinct().sorted().toList()
     val filtered = notes.filter { note ->
         val inSection = when (section) {
             "Archive" -> note.archived && !note.deleted
@@ -337,7 +337,7 @@ private fun decodeBackup(raw: String): List<FolioNote> {
 }
 private fun loadNotes(raw: String, onCorrupt: (String) -> Unit = {}): List<FolioNote> = try {
     val array = JSONArray(raw)
-    (0 until array.length()).map { i ->
+    val parsed = (0 until array.length()).map { i ->
         val item = array.getJSONObject(i)
         val tagsJson = item.optJSONArray("tags") ?: JSONArray()
         FolioNote(item.getString("id"), item.optString("title"), item.optString("body"),
@@ -347,6 +347,9 @@ private fun loadNotes(raw: String, onCorrupt: (String) -> Unit = {}): List<Folio
             item.optLong("updatedAt", System.currentTimeMillis()),
             item.optLong("createdAt", item.optLong("updatedAt", System.currentTimeMillis())))
     }
+    // Duplicate IDs break LazyColumn stable keys. Keep the newest valid local version.
+    parsed.groupBy { it.id }.values.map { copies -> copies.maxBy { it.updatedAt } }
+        .sortedByDescending { it.updatedAt }
 } catch (_: Exception) {
     onCorrupt(raw)
     emptyList()
