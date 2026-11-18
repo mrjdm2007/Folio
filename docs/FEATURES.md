@@ -6,6 +6,9 @@
 |---|---:|---:|
 | Create/edit/autosave, search, folders, tags | Yes | Yes |
 | Folder quick-filter chips | Sidebar navigation | Dynamic horizontal chips |
+| Dedicated pinned-notes view | Yes | Yes |
+| Responsive phone editor with return-to-list navigation | N/A | Yes |
+| Live word/character count | Yes | Yes |
 | Pin, archive, trash, restore, duplicate | Yes | Yes |
 | Starter templates and Markdown shortcuts | Yes | Yes |
 | Share one note as Markdown | Yes | Yes |
@@ -41,6 +44,8 @@ Backups and local note stores are plaintext. Store backups privately. Do not sto
 - Android backup restore deterministically selects the newest record when an imported backup repeats a note ID.
 - Android preserves malformed local JSON in a separate recovery preference before the library is edited, rather than silently discarding the only copy.
 - macOS rejects backup envelopes with malformed note identifiers instead of generating replacement IDs, and trashing a note now updates its modification timestamp.
+- macOS now preserves an unreadable existing notes file rather than treating it as an empty library and overwriting it with a welcome note.
+- Android switches to a single-pane note editor on narrow screens and retains a clear route back to the note list.
 
 These changes have been committed, but CI is still required to confirm compilation on both platforms.
 
