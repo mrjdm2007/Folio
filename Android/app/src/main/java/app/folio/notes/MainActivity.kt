@@ -53,7 +53,7 @@ fun FolioScreen() {
     var query by remember { mutableStateOf("") }
     var section by remember { mutableStateOf("All Notes") }
     var sortMode by remember { mutableStateOf("Recently updated") }
-    var showSortMenu by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }\n    var historyNoteId by remember { mutableStateOf<String?>(null) }\n    var historyItems by remember { mutableStateOf<List<FolioNote>>(emptyList()) }
     var editingTitle by remember { mutableStateOf("") }
     var editingBody by remember { mutableStateOf("") }
     var editingFolder by remember { mutableStateOf("Notes") }
