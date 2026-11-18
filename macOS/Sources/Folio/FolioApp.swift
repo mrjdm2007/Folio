@@ -114,6 +114,7 @@ final class NoteStore: ObservableObject {
     @Published var selection: UUID?
     @Published var query = ""
     @Published var selectedFolder = "All Notes"
+    @Published var sortMode = "Recently updated"
     private let fileURL: URL
     private let attachmentsURL: URL
     private let attachmentIndexURL: URL
@@ -147,7 +148,15 @@ final class NoteStore: ObservableObject {
                 note.body.localizedCaseInsensitiveContains(query) ||
                 note.tags.contains(where: { $0.localizedCaseInsensitiveContains(query) })
             return location && match
-        }.sorted { ($0.isPinned, $0.updatedAt) > ($1.isPinned, $1.updatedAt) }
+        }.sorted { left, right in
+            if left.isPinned != right.isPinned { return left.isPinned }
+            switch sortMode {
+            case "Oldest first": return left.updatedAt < right.updatedAt
+            case "Title A–Z": return left.title.localizedStandardCompare(right.title) == .orderedAscending
+            case "Title Z–A": return left.title.localizedStandardCompare(right.title) == .orderedDescending
+            default: return left.updatedAt > right.updatedAt
+            }
+        }
     }
     var selectedNote: FolioNote? { notes.first { $0.id == selection } }
     func createNote(title: String = "Untitled Note") {
@@ -348,6 +357,17 @@ struct FolioRootView: View {
         } content: {
             VStack(spacing: 10) {
                 TextField("Search titles, text and tags", text: $store.query).textFieldStyle(.roundedBorder)
+                HStack {
+                    Text("\(store.visibleNotes.count) notes").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Menu {
+                        ForEach(["Recently updated", "Oldest first", "Title A–Z", "Title Z–A"], id: \.self) { mode in
+                            Button { store.sortMode = mode } label: {
+                                if store.sortMode == mode { Label(mode, systemImage: "checkmark") } else { Text(mode) }
+                            }
+                        }
+                    } label: { Label("Sort", systemImage: "arrow.up.arrow.down").font(.caption) }
+                }
                 List(selection: $store.selection) {
                     ForEach(store.visibleNotes) { note in
                         VStack(alignment: .leading, spacing: 5) {
