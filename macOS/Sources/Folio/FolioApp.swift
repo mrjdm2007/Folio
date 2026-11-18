@@ -202,7 +202,7 @@ final class NoteStore: ObservableObject {
             guard let id = UUID(uuidString: item.id) else { continue }
             let candidate = item.note
             guard let current = byID[id] else { byID[id] = candidate; continue }
-            if candidate != current {
+            if !peerContentEqual(candidate, current) {
                 let losing = candidate.updatedAt > current.updatedAt ? current : candidate
                 var conflict = losing
                 let identity = "\(id.uuidString)|\(Int64(losing.updatedAt.timeIntervalSince1970 * 1000))|\(losing.title)|\(losing.body)|\(losing.folder)|\(losing.tags.joined(separator: ","))|\(losing.isArchived)|\(losing.isDeleted)"
@@ -356,6 +356,12 @@ final class NoteStore: ObservableObject {
         guard let data = try? JSONEncoder().encode(attachments) else { return }
         try? data.write(to: attachmentIndexURL, options: .atomic)
     }
+    private func peerContentEqual(_ lhs: FolioNote, _ rhs: FolioNote) -> Bool {
+        lhs.title == rhs.title && lhs.body == rhs.body && lhs.folder == rhs.folder &&
+        lhs.tags == rhs.tags && lhs.isPinned == rhs.isPinned &&
+        lhs.isArchived == rhs.isArchived && lhs.isDeleted == rhs.isDeleted
+    }
+
     func makeBackup() -> FolioBackupDocument {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -614,9 +620,13 @@ struct SettingsView: View {
                 Text("\(store.notes.count) notes stored locally")
             }
             Section("Peer-to-peer sync") {
-                SecureField("Shared pairing key (32+ characters)", text: $store.peerPairingKey)
+                TextField("Shared pairing key (32+ characters)", text: $store.peerPairingKey)
                 HStack {
                     Button("Create pairing key") { store.createPeerPairingKey() }
+                    Button("Copy key") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(store.peerPairingKey, forType: .string)
+                    }.disabled(store.peerPairingKey.isEmpty)
                     Button("Save pairing key") { store.configurePeerSync(key: store.peerPairingKey) }
                 }
                 TextField("Other device IP address", text: $store.peerAddress)
