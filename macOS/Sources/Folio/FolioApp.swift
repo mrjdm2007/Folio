@@ -820,6 +820,7 @@ struct NoteEditor: View {
             .onChange(of: bodyText) { _ in persist() }
             .onChange(of: folder) { _ in persist() }
             .onChange(of: tags) { _ in persist() }
+            .onChange(of: priority) { _ in persist() }
     }
     private func exportMarkdown() {
         let panel = NSSavePanel()
