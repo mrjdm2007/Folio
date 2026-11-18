@@ -187,6 +187,7 @@ final class NoteStore: ObservableObject {
     func moveToTrash(_ note: FolioNote) {
         guard let i = notes.firstIndex(where: { $0.id == note.id }) else { return }
         notes[i].isDeleted = true; notes[i].isArchived = false
+        notes[i].updatedAt = .now
         if selection == note.id { selection = nil }; save()
     }
     func restore(_ note: FolioNote) {
@@ -206,6 +207,10 @@ final class NoteStore: ObservableObject {
         let imported: [FolioNote]
         if let envelope = try? decoder.decode(FolioBackupEnvelope.self, from: data) {
             guard envelope.schemaVersion == 1 else { throw BackupError.unsupportedVersion }
+            // Reject malformed identifiers rather than silently assigning new IDs and duplicating notes.
+            guard envelope.notes.allSatisfy({ UUID(uuidString: $0.id) != nil }) else {
+                throw BackupError.invalidFile
+            }
             imported = envelope.notes.map(\.note)
         } else if let legacy = try? decoder.decode([FolioNote].self, from: data) {
             imported = legacy
