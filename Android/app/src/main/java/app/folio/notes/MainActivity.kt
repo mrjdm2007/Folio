@@ -103,7 +103,12 @@ fun FolioScreen() {
     }
     fun updateSelected(transform: (FolioNote) -> FolioNote) {
         val id = selectedId ?: return
-        persist(notes.map { if (it.id == id) transform(it).copy(updatedAt = System.currentTimeMillis()) else it })
+        val current = notes.firstOrNull { it.id == id } ?: return
+        val changed = transform(current)
+        if (current.title != changed.title || current.body != changed.body ||
+            current.folder != changed.folder || current.tags != changed.tags) appendRevision(prefs, current)
+        val updated = changed.copy(updatedAt = System.currentTimeMillis())
+        persist(notes.map { if (it.id == id) updated else it })
     }
     var backupStatus by remember { mutableStateOf<String?>(null) }
     var peerAddress by remember { mutableStateOf(prefs.getString("p2p_peer_address", "") ?: "") }
@@ -519,6 +524,7 @@ fun FolioScreen() {
                 else Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
                     historyItems.forEach { version ->
                         TextButton(onClick = {
+                            notes.firstOrNull { it.id == id }?.let { appendRevision(prefs, it) }
                             persist(notes.map { if (it.id == id) version.copy(updatedAt = System.currentTimeMillis()) else it })
                             if (selectedId == id) {
                                 editingTitle = version.title; editingBody = version.body
@@ -556,6 +562,20 @@ fun FolioScreen() {
             }
         )
     }
+}
+private fun appendRevision(prefs: android.content.SharedPreferences, note: FolioNote) {
+    val key = "history_${note.id}"
+    val history = runCatching { org.json.JSONArray(prefs.getString(key, "[]") ?: "[]") }.getOrDefault(org.json.JSONArray())
+    val now = System.currentTimeMillis()
+    val lastSaved = if (history.length() == 0) 0L else history.optJSONObject(history.length() - 1)?.optLong("savedAtMs", 0L) ?: 0L
+    if (lastSaved > 0L && now - lastSaved < 30_000L) return
+    val tags = org.json.JSONArray().apply { note.tags.forEach { put(it) } }
+    history.put(org.json.JSONObject().put("id", note.id).put("title", note.title).put("body", note.body)
+        .put("folder", note.folder).put("tags", tags).put("isPinned", note.pinned)
+        .put("isArchived", note.archived).put("isDeleted", note.deleted)
+        .put("updatedAtMs", note.updatedAt).put("createdAtMs", note.createdAt).put("savedAtMs", now))
+    while (history.length() > 50) history.remove(0)
+    prefs.edit().putString(key, history.toString()).apply()
 }
 private data class FolioNote(
     val id: String, val title: String, val body: String, val pinned: Boolean = false,
