@@ -234,7 +234,14 @@ final class NoteStore: ObservableObject {
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
         guard let data = try? Data(contentsOf: fileURL) else { return }
         do {
-            notes = try JSONDecoder().decode([FolioNote].self, from: data)
+            let decoded = try JSONDecoder().decode([FolioNote].self, from: data)
+            // Stable SwiftUI row identity requires unique IDs; retain the newest duplicate.
+            var unique: [UUID: FolioNote] = [:]
+            for note in decoded {
+                if let current = unique[note.id], current.updatedAt > note.updatedAt { continue }
+                unique[note.id] = note
+            }
+            notes = Array(unique.values).sorted { $0.updatedAt > $1.updatedAt }
             selection = notes.first(where: { !$0.isDeleted && !$0.isArchived })?.id
         } catch {
             // Never silently replace an unreadable library with a new empty one.
