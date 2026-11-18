@@ -233,7 +233,11 @@ final class NoteStore: ObservableObject {
     }
     private func load() {
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
-        guard let data = try? Data(contentsOf: fileURL) else { return }
+        guard let data = try? Data(contentsOf: fileURL) else {
+            // Do not create a fresh welcome note over a file that exists but cannot be read.
+            recoveredCorruptStore = true
+            return
+        }
         do {
             let decoded = try JSONDecoder().decode([FolioNote].self, from: data)
             // Stable SwiftUI row identity requires unique IDs; retain the newest duplicate.
