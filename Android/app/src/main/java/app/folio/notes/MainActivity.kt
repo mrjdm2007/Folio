@@ -87,6 +87,11 @@ fun FolioScreen() {
         persist(notes.map { if (it.id == id) transform(it).copy(updatedAt = System.currentTimeMillis()) else it })
     }
     var backupStatus by remember { mutableStateOf<String?>(null) }
+    var peerAddress by remember { mutableStateOf(prefs.getString("p2p_peer_address", "") ?: "") }
+    var pairingKey by remember { mutableStateOf(FolioPeerSync.pairingSecret(context)) }
+    var syncMessage by remember { mutableStateOf("Peer sync is not paired") }
+    LaunchedEffect(Unit) { FolioPeerSync.startListener(context) }
+
     val exportBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
         if (uri != null) runCatching {
             context.contentResolver.openOutputStream(uri)?.use { it.write(encodeBackup(notes).toByteArray(Charsets.UTF_8)) }
@@ -224,6 +229,39 @@ fun FolioScreen() {
             OutlinedTextField(value = query, onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(), placeholder = { Text("Search titles, text and tags") },
                 leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true)
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Peer-to-peer sync", style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(value = pairingKey, onValueChange = { pairingKey = it },
+                        modifier = Modifier.fillMaxWidth(), label = { Text("Shared pairing key (32+ characters)") }, singleLine = true)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            pairingKey = FolioPeerSync.createPairingSecret(context)
+                            syncMessage = "Pairing key created. Enter the same key on your other device."
+                        }) { Text("Create key") }
+                        OutlinedButton(onClick = {
+                            runCatching { FolioPeerSync.setPairingSecret(context, pairingKey) }
+                                .onSuccess { syncMessage = "This device is paired and listening on port 47831." }
+                                .onFailure { syncMessage = it.message ?: "Invalid pairing key." }
+                        }) { Text("Save key") }
+                    }
+                    OutlinedTextField(value = peerAddress, onValueChange = { peerAddress = it },
+                        modifier = Modifier.fillMaxWidth(), label = { Text("Other device IP address") }, singleLine = true)
+                    Button(onClick = {
+                        prefs.edit().putString("p2p_peer_address", peerAddress.trim()).apply()
+                        syncMessage = "Connecting…"
+                        FolioPeerSync.sync(context, peerAddress.trim()) { result ->
+                            runOnUiThread {
+                                result.onSuccess { count -> syncMessage = "Sync complete · $count notes on this device" }
+                                    .onFailure { error -> syncMessage = "Sync failed · ${error.message ?: "connection error"}" }
+                            }
+                        }
+                    }, enabled = peerAddress.isNotBlank() && pairingKey.length >= 32) { Text("Sync now") }
+                    Text(syncMessage, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Both devices must use the same key and be reachable on the same Wi-Fi or private VPN. Keep this key private.",
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { exportBackup.launch("Folio-Backup.json") }) { Text("Export backup") }
                 OutlinedButton(onClick = { importBackup.launch(arrayOf("application/json", "text/json")) }) { Text("Restore backup") }
