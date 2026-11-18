@@ -2,7 +2,7 @@
 
 ## Current state
 
-The database migration in `supabase/migrations/20261118000100_folio_encrypted_sync.sql` creates the per-user encrypted-note, immutable revision-history, and private attachment metadata/storage schema. Row-level security restricts every record and object to its authenticated owner.
+The database migrations create the per-user encrypted-note, immutable revision-history, and private attachment metadata/storage schema. The `folio_push_note` RPC in `20261118000200_folio_atomic_sync_push.sql` performs an atomic compare-and-write against the expected revision and reports conflicts instead of overwriting them. Row-level security restricts every record and object to its authenticated owner.
 
 **This is backend infrastructure, not a claim that client sync is finished.** The current macOS and Android app builds do not yet authenticate to Supabase, encrypt local notes, run a sync queue, or expose account settings. Do not treat the feature as enabled until those client modules are shipped and tested.
 
@@ -22,7 +22,7 @@ A sync client must:
 - Generate a random per-account data key on-device. Wrap it with a password-derived key using a vetted KDF (Argon2id where available; otherwise calibrated PBKDF2-HMAC-SHA256) and a random salt. Keep the unwrapped key only in memory while unlocked.
 - Encrypt each serialized note and attachment locally using authenticated encryption (AES-256-GCM or ChaCha20-Poly1305). Generate a unique nonce for every encryption. The server receives ciphertext, nonce, key version, and a content hash, never plaintext or key material.
 - Persist local edits and an outbox transactionally before attempting network work.
-- Upload using optimistic concurrency: send the expected parent revision. If the remote current revision differs, download both encrypted versions and create a visible conflict copy; never silently overwrite either version.
+- Upload using the `folio_push_note` RPC with the expected parent revision. A `conflict` outcome means the server has a newer revision; fetch both encrypted versions and create a visible conflict copy. Never silently overwrite either version.
 - Pull remote revisions using a stable cursor / updated-at plus ID ordering, and make retries idempotent.
 - Treat trash as a tombstone so deletion propagates to other devices. Permanent deletion should be a separate explicit operation.
 - Upload encrypted attachments to `folio-encrypted-attachments/<auth.uid()>/<attachment-id>` and verify the ciphertext hash after download.
