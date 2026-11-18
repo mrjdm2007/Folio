@@ -111,3 +111,12 @@ This is a first usable direct-sync pass, not the complete release protocol. It c
 
 - Both apps now offer Research Notes, Reading List, Weekly Planner and Lecture Revision templates alongside the existing Class Notes, Meeting, Daily Journal and Project Brief templates.
 - Templates are ordinary editable Markdown notes, so their checklists work with the existing Tasks inbox and progress indicator.
+
+
+## Latest bug-fix and usability pass
+
+- Android Markdown preview now distinguishes headings, quotes, task checkboxes, bullet/numbered lists, horizontal rules and fenced code blocks; inline bold, italic and code spans are styled.
+- Android rejects duplicate document attachments and clears per-note attachment/revision metadata when a note is permanently deleted.
+- macOS permanent deletion now removes that note's managed attachment files and local revision history, avoiding orphaned data.
+- macOS rejects attachments larger than 100 MB and has a bounded 12-second outbound peer-sync timeout, so an unreachable peer does not leave Sync Now hanging indefinitely.
+- These are source changes; CI and real-device checks are still required. Neither attachment replication nor complete CommonMark rendering is claimed as finished.

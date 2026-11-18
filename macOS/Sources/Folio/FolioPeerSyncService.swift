@@ -61,15 +61,32 @@ final class FolioPeerSyncService {
         do {
             guard secret().count >= 32 else { throw SyncError.notPaired }
             let connection = NWConnection(host: NWEndpoint.Host(host), port: Self.port, using: .tcp)
+            let completionLock = NSLock()
+            var completed = false
+            let finish: (Result<[PortableFolioNote], Error>) -> Void = { result in
+                completionLock.lock()
+                let shouldFinish = !completed
+                completed = true
+                completionLock.unlock()
+                guard shouldFinish else { return }
+                connection.cancel()
+                completion(result)
+            }
+            let timeout = DispatchWorkItem { finish(.failure(SyncError.timedOut)) }
+            queue.asyncAfter(deadline: .now() + 12, execute: timeout)
             connection.stateUpdateHandler = { [weak self] state in
-                guard let self else { return }
-                if case .ready = state {
-                    self.sendExchange(notes, on: connection) { result in
-                        connection.cancel()
-                        completion(result)
-                    }
-                } else if case .failed(let error) = state {
-                    connection.cancel(); completion(.failure(error))
+                guard let self else { finish(.failure(SyncError.disconnected)); return }
+                switch state {
+                case .ready:
+                    timeout.cancel()
+                    self.sendExchange(notes, on: connection) { result in finish(result) }
+                case .failed(let error):
+                    timeout.cancel()
+                    finish(.failure(error))
+                case .cancelled:
+                    timeout.cancel()
+                default:
+                    break
                 }
             }
             connection.start(queue: queue)
@@ -210,7 +227,7 @@ final class FolioPeerSyncService {
         return Data(bytes)
     }
     enum SyncError: LocalizedError {
-        case notPaired, invalidMessage, tooLarge, disconnected, keyDerivation
+        case notPaired, invalidMessage, tooLarge, disconnected, keyDerivation, timedOut
         var errorDescription: String? {
             switch self {
             case .notPaired: return "Create or enter the same pairing key on both devices."
@@ -218,6 +235,7 @@ final class FolioPeerSyncService {
             case .tooLarge: return "The peer sync message exceeds the 8 MB limit."
             case .disconnected: return "The peer disconnected during sync."
             case .keyDerivation: return "Could not derive the sync encryption key."
+            case .timedOut: return "The peer did not respond within 12 seconds."
             }
         }
     }

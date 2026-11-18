@@ -353,7 +353,19 @@ final class NoteStore: ObservableObject {
         notes[i].isDeleted = false; notes[i].isArchived = false; notes[i].updatedAt = .now; save()
     }
     func permanentlyDelete(_ note: FolioNote) {
-        notes.removeAll { $0.id == note.id }; if selection == note.id { selection = nil }; save()
+        notes.removeAll { $0.id == note.id }
+        let removed = attachments.filter { $0.noteID == note.id }
+        attachments.removeAll { $0.noteID == note.id }
+        for item in removed {
+            try? FileManager.default.removeItem(at: attachmentsURL.appendingPathComponent(item.storedName))
+        }
+        saveAttachments()
+        revisionHistory.removeValue(forKey: note.id.uuidString)
+        if let data = try? JSONEncoder().encode(revisionHistory) {
+            try? data.write(to: historyURL, options: .atomic)
+        }
+        if selection == note.id { selection = nil }
+        save()
     }
     func addAttachment(_ source: URL, to noteID: UUID) throws {
         let access = source.startAccessingSecurityScopedResource()
@@ -362,6 +374,12 @@ final class NoteStore: ObservableObject {
         let ext = source.pathExtension
         let storedName = id.uuidString + (ext.isEmpty ? "" : "." + ext)
         let destination = attachmentsURL.appendingPathComponent(storedName)
+        let attributes = try FileManager.default.attributesOfItem(atPath: source.path)
+        let fileSize = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+        guard fileSize <= 100 * 1024 * 1024 else {
+            throw NSError(domain: "FolioAttachments", code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Attachments must be 100 MB or smaller."])
+        }
         try FileManager.default.copyItem(at: source, to: destination)
         let item = FolioAttachment(id: id, noteID: noteID, name: source.lastPathComponent,
                                    storedName: storedName, contentType: UTType(filenameExtension: ext)?.preferredMIMEType ?? "application/octet-stream")

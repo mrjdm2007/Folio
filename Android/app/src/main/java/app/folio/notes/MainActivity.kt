@@ -181,6 +181,7 @@ fun FolioScreen() {
                 if (cursor.moveToFirst()) cursor.getString(0) else null
             } ?: "Attached document"
             val current = decodeDocuments(prefs.getString("documents_$target", "[]") ?: "[]")
+            require(current.none { it.uri == uri.toString() }) { "This document is already attached." }
             val next = current + FolioDocument(uri.toString(), name)
             prefs.edit().putString("documents_$target", encodeDocuments(next)).apply()
             if (selectedId == target) attachedDocs = next
@@ -555,16 +556,7 @@ fun FolioScreen() {
                             }
                         }
                         if (showRenderedPreview) {
-                            androidx.compose.foundation.lazy.LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(8.dp)) {
-                                items(editingBody.lines()) { line ->
-                                    val clean = line.trimStart()
-                                    val heading = clean.startsWith("#")
-                                    val content = clean.trimStart('#', ' ').let { if (clean.startsWith("- ")) "• " + clean.removePrefix("- ") else it }
-                                    Text(content, modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                                        style = when { clean.startsWith("# ") -> MaterialTheme.typography.headlineSmall; clean.startsWith("## ") -> MaterialTheme.typography.titleLarge; clean.startsWith("### ") -> MaterialTheme.typography.titleMedium; clean.startsWith("> ") -> MaterialTheme.typography.bodyLarge; else -> MaterialTheme.typography.bodyMedium },
-                                        color = if (clean.startsWith("> ")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-                                }
-                            }
+                            MarkdownPreview(editingBody, Modifier.weight(1f).fillMaxWidth().padding(8.dp))
                         } else {
                             OutlinedTextField(value = editingBody, onValueChange = { value ->
                                 editingBody = value; updateSelected { it.copy(body = value) }
@@ -666,7 +658,8 @@ fun FolioScreen() {
             confirmButton = {
                 TextButton(onClick = {
                     persist(notes.filterNot { it.id == id })
-                    if (selectedId == id) selectedId = null
+                    prefs.edit().remove("documents_$id").remove("revisions_$id").apply()
+                    if (selectedId == id) { selectedId = null; attachedDocs = emptyList() }
                     permanentDeleteId = null
                 }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             },
@@ -826,6 +819,73 @@ private fun encodeNotes(notes: List<FolioNote>): String {
     return array.toString()
 }
 
+@Composable
+private fun MarkdownPreview(markdown: String, modifier: Modifier = Modifier) {
+    var inCodeBlock = false
+    Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        markdown.lines().forEach { raw ->
+            val line = raw.trimEnd()
+            val clean = line.trimStart()
+            if (clean.startsWith("\\`\\`\\`")) {
+                inCodeBlock = !inCodeBlock
+            } else if (inCodeBlock) {
+                Text(line, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant,
+                        RoundedCornerShape(5.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
+            } else if (clean.isBlank()) {
+                Spacer(Modifier.height(2.dp))
+            } else if (clean.matches(Regex("^(---|___|\\*\\*\\*)$"))) {
+                HorizontalDivider()
+            } else {
+                val headingLevel = clean.takeWhile { it == '#' }.length
+                val isQuote = clean.startsWith("> ")
+                val task = Regex("^[-*+] \\[([ xX])\\] (.*)$").matchEntire(clean)
+                val bullet = Regex("^[-*+] (.*)$").matchEntire(clean)
+                val numbered = Regex("^\\\\d+[.)] (.*)$").matchEntire(clean)
+                val content = when {
+                    headingLevel in 1..6 -> clean.drop(headingLevel).trimStart()
+                    isQuote -> clean.removePrefix("> ")
+                    task != null -> (if (task.groupValues[1].equals("x", true)) "☑ " else "☐ ") + task.groupValues[2]
+                    bullet != null -> "• " + bullet.groupValues[1]
+                    numbered != null -> clean
+                    else -> clean
+                }
+                Text(markdownInline(content),
+                    modifier = Modifier.fillMaxWidth().then(if (isQuote) Modifier.padding(start = 10.dp) else Modifier),
+                    style = when {
+                        headingLevel == 1 -> MaterialTheme.typography.headlineMedium
+                        headingLevel == 2 -> MaterialTheme.typography.headlineSmall
+                        headingLevel == 3 -> MaterialTheme.typography.titleLarge
+                        headingLevel in 4..6 -> MaterialTheme.typography.titleMedium
+                        else -> MaterialTheme.typography.bodyMedium
+                    },
+                    color = if (isQuote) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+            }
+        }
+    }
+}
+
+private fun markdownInline(value: String): androidx.compose.ui.text.AnnotatedString =
+    androidx.compose.ui.text.buildAnnotatedString {
+        val pattern = Regex("\\\\*\\\\*(.+?)\\\\*\\\\*|(?<!\\\\*)\\\\*([^*]+)\\\\*|(?<!_)_([^_]+)_|\\`[^\\`]+\\`")
+        var cursor = 0
+        pattern.findAll(value).forEach { match ->
+            append(value.substring(cursor, match.range.first))
+            val group = (1..4).firstOrNull { match.groups[it] != null }
+            if (group != null) {
+                val span = match.groups[group]!!.value
+                val style = when (group) {
+                    1 -> androidx.compose.ui.text.SpanStyle(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                    2, 3 -> androidx.compose.ui.text.SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+                    else -> androidx.compose.ui.text.SpanStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        background = androidx.compose.ui.graphics.Color(0x223F8F5F))
+                }
+                pushStyle(style); append(span); pop()
+            }
+            cursor = match.range.last + 1
+        }
+        append(value.substring(cursor))
+    }
 private data class FolioDocument(val uri: String, val name: String)
 private fun encodeDocuments(items: List<FolioDocument>): String = JSONArray().apply {
     items.forEach { put(JSONObject().put("uri", it.uri).put("name", it.name)) }
