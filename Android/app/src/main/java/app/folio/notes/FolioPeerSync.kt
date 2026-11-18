@@ -74,7 +74,7 @@ object FolioPeerSync {
         thread(name = "Folio-P2P-sync") {
             try {
                 val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                val secret = prefs.getString(SECRET_KEY, "") ?: error("Pair this device first.")
+                val secret = pairingSecret(context).ifBlank { error("Pair this device first.") }
                 require(secret.length >= 32) { "Pair this device first." }
                 val socket = Socket()
                 socket.connect(InetSocketAddress(host, PORT), 5000)
