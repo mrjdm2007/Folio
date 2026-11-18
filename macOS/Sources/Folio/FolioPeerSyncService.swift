@@ -63,28 +63,28 @@ final class FolioPeerSyncService {
             let connection = NWConnection(host: NWEndpoint.Host(host), port: Self.port, using: .tcp)
             let completionLock = NSLock()
             var completed = false
+            var timeout: DispatchWorkItem?
             let finish: (Result<[PortableFolioNote], Error>) -> Void = { result in
                 completionLock.lock()
                 let shouldFinish = !completed
                 completed = true
                 completionLock.unlock()
                 guard shouldFinish else { return }
+                timeout?.cancel()
                 connection.cancel()
                 completion(result)
             }
-            let timeout = DispatchWorkItem { finish(.failure(SyncError.timedOut)) }
-            queue.asyncAfter(deadline: .now() + 12, execute: timeout)
+            timeout = DispatchWorkItem { finish(.failure(SyncError.timedOut)) }
+            if let timeout { queue.asyncAfter(deadline: .now() + 12, execute: timeout) }
             connection.stateUpdateHandler = { [weak self] state in
                 guard let self else { finish(.failure(SyncError.disconnected)); return }
                 switch state {
                 case .ready:
-                    timeout.cancel()
                     self.sendExchange(notes, on: connection) { result in finish(result) }
                 case .failed(let error):
-                    timeout.cancel()
                     finish(.failure(error))
                 case .cancelled:
-                    timeout.cancel()
+                    break
                 default:
                     break
                 }
