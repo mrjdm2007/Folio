@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -70,6 +71,7 @@ fun FolioScreen() {
     var section by remember { mutableStateOf("All Notes") }
     var sortMode by remember { mutableStateOf("Recently updated") }
     var showSortMenu by remember { mutableStateOf(false) }
+    var showSyncPanel by remember { mutableStateOf(false) }
     var historyNoteId by remember { mutableStateOf<String?>(null) }
     var historyItems by remember { mutableStateOf<List<FolioNote>>(emptyList()) }
     var editingTitle by remember { mutableStateOf("") }
@@ -272,6 +274,9 @@ fun FolioScreen() {
                 }
             } },
             actions = {
+                IconButton(onClick = { showSyncPanel = !showSyncPanel }) {
+                    Icon(Icons.Default.Settings, if (showSyncPanel) "Hide sync settings" else "Sync settings")
+                }
                 var showTemplates by remember { mutableStateOf(false) }
                 IconButton(onClick = { showTemplates = true }) { Icon(Icons.Default.Add, "New note or template") }
                 DropdownMenu(expanded = showTemplates, onDismissRequest = { showTemplates = false }) {
@@ -286,7 +291,7 @@ fun FolioScreen() {
             OutlinedTextField(value = query, onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(), placeholder = { Text("Search titles, text and tags") },
                 leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true)
-            Card(Modifier.fillMaxWidth()) {
+            if (showSyncPanel) Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Peer-to-peer sync", style = MaterialTheme.typography.titleMedium)
                     OutlinedTextField(value = pairingKey, onValueChange = { pairingKey = it },
