@@ -205,10 +205,14 @@ final class NoteStore: ObservableObject {
             if !peerContentEqual(candidate, current) {
                 let losing = candidate.updatedAt > current.updatedAt ? current : candidate
                 var conflict = losing
-                let identity = "\(id.uuidString)|\(Int64(losing.updatedAt.timeIntervalSince1970 * 1000))|\(losing.title)|\(losing.body)|\(losing.folder)|\(losing.tags.joined(separator: ","))|\(losing.isArchived)|\(losing.isDeleted)"
-                let digest = SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
-                let uuidText = "\(digest.prefix(8))-\(digest.dropFirst(8).prefix(4))-5\(digest.dropFirst(13).prefix(3))-a\(digest.dropFirst(17).prefix(3))-\(digest.dropFirst(20).prefix(12))"
-                conflict.id = UUID(uuidString: uuidText) ?? UUID()
+                let tagsJSON = (try? JSONSerialization.data(withJSONObject: losing.tags))
+                    .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+                let identity = "\(id.uuidString)|\(Int64(losing.updatedAt.timeIntervalSince1970 * 1000))|\(losing.title)|\(losing.body)|\(losing.folder)|\(tagsJSON)|\(losing.isPinned)|\(losing.isArchived)|\(losing.isDeleted)"
+                var bytes = Array(Insecure.MD5.hash(data: Data(identity.utf8)))
+                bytes[6] = (bytes[6] & 0x0f) | 0x30
+                bytes[8] = (bytes[8] & 0x3f) | 0x80
+                conflict.id = UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5],
+                    bytes[6], bytes[7], bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]))
                 conflict.title += " (Sync conflict)"
                 conflict.folder = "Sync Conflicts"
                 conflict.isPinned = false
