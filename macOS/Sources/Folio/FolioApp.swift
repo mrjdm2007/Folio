@@ -445,7 +445,8 @@ struct NoteEditor: View {
             .fileImporter(isPresented: $showingAttachmentPicker, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
                 do { for url in try result.get() { try store.addAttachment(url, to: note.id) }; attachmentMessage = "Documents attached." }
                 catch { attachmentMessage = error.localizedDescription }
-            }\n            .onAppear { loadDraft() }
+            }
+            .onAppear { loadDraft() }
             .onChange(of: note.id) { _ in loadDraft() }
             .onChange(of: title) { _ in persist() }
             .onChange(of: bodyText) { _ in persist() }
