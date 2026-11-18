@@ -3,6 +3,7 @@ import Combine
 import UniformTypeIdentifiers
 import AppKit
 import Security
+import CryptoKit
 
 @main
 struct FolioApp: App {
@@ -143,8 +144,8 @@ final class NoteStore: ObservableObject {
         loadAttachments()
         load()
         if notes.isEmpty && !recoveredCorruptStore { createNote(title: "Welcome to Folio") }
-        peerPairingKey = UserDefaults.standard.string(forKey: "FolioPeerPairingKey") ?? ""
-        peerService = FolioPeerSyncService(secret: { UserDefaults.standard.string(forKey: "FolioPeerPairingKey") ?? "" },
+        peerPairingKey = FolioPeerSyncService.loadPairingSecret()
+        peerService = FolioPeerSyncService(secret: { FolioPeerSyncService.loadPairingSecret() },
             exchange: { [weak self] remote in
                 var result = remote
                 DispatchQueue.main.sync { if let self { result = self.mergePeerNotes(remote) } }
@@ -160,10 +161,10 @@ final class NoteStore: ObservableObject {
     func configurePeerSync(key: String) {
         guard key.count >= 32 else { syncStatus = "Pairing key must be at least 32 characters."; return }
         peerPairingKey = key
-        UserDefaults.standard.set(key, forKey: "FolioPeerPairingKey")
         do {
+            try FolioPeerSyncService.savePairingSecret(key)
             try peerService?.start()
-            syncStatus = "Paired key saved · listening on port 47831"
+            syncStatus = "Pairing key saved in Keychain · listening on port 47831"
         } catch { syncStatus = error.localizedDescription }
     }
 
