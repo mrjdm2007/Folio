@@ -37,7 +37,7 @@ Backups and local note stores are plaintext. Store backups privately. Do not sto
 
 ## Reliability improvements in latest commits
 
-- Android now exposes existing user folders as quick-filter chips.
+- Android now exposes existing user folders as quick-filter chips and supports confirmed permanent deletion from Recently Deleted.
 - Android backup restore deterministically selects the newest record when an imported backup repeats a note ID.
 - Android preserves malformed local JSON in a separate recovery preference before the library is edited, rather than silently discarding the only copy.
 - macOS rejects backup envelopes with malformed note identifiers instead of generating replacement IDs, and trashing a note now updates its modification timestamp.
