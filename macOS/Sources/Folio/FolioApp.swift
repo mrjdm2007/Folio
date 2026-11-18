@@ -61,7 +61,15 @@ struct FolioBackupDocument: FileDocument {
         FileWrapper(regularFileWithContents: data)
     }
 }
-struct FolioAttachment: Identifiable, Codable, Equatable {\n    var id: UUID\n    var noteID: UUID\n    var name: String\n    var storedName: String\n    var contentType: String\n}\n\nstruct FolioNote: Identifiable, Codable, Equatable {
+struct FolioAttachment: Identifiable, Codable, Equatable {
+    var id: UUID
+    var noteID: UUID
+    var name: String
+    var storedName: String
+    var contentType: String
+}
+
+struct FolioNote: Identifiable, Codable, Equatable {
     var id: UUID = UUID()
     var title: String
     var body: String
@@ -434,7 +442,10 @@ struct NoteEditor: View {
                 Text("\(bodyText.split(whereSeparator: \.isWhitespace).count) words")
             }.font(.caption).foregroundStyle(.secondary)
         }.padding(24)
-            .fileImporter(isPresented: $showingAttachmentPicker, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in\n                do { for url in try result.get() { try store.addAttachment(url, to: note.id) }; attachmentMessage = "Documents attached." }\n                catch { attachmentMessage = error.localizedDescription }\n            }\n            .onAppear { loadDraft() }
+            .fileImporter(isPresented: $showingAttachmentPicker, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
+                do { for url in try result.get() { try store.addAttachment(url, to: note.id) }; attachmentMessage = "Documents attached." }
+                catch { attachmentMessage = error.localizedDescription }
+            }\n            .onAppear { loadDraft() }
             .onChange(of: note.id) { _ in loadDraft() }
             .onChange(of: title) { _ in persist() }
             .onChange(of: bodyText) { _ in persist() }
