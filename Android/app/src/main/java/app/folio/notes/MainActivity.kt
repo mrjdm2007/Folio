@@ -131,10 +131,54 @@ fun FolioScreen() {
     fun createTemplate(kind: String) {
         val date = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
         val pair = when (kind) {
-            "Class Notes" -> "Class Notes" to "# Topic\n\n**Date:** $date\n**Course:** \n\n## Key concepts\n- \n\n## Examples\n\n## Questions\n- [ ] "
-            "Meeting" -> "Meeting Notes" to "# Meeting\n\n**Date:** $date\n**Attendees:** \n\n## Agenda\n1. \n\n## Decisions\n- \n\n## Action items\n- [ ] Owner — Task — Due date"
-            "Daily Journal" -> "Daily Journal" to "# Daily Journal\n\n**Date:** $date\n\n## Today\n\n## Highlights\n- \n\n## To remember\n- "
-            else -> "Project Brief" to "# Project Brief\n\n## Objective\n\n## Scope\n\n## Milestones\n- [ ] \n\n## Risks\n\n## Next steps"
+            "Class Notes" -> "Class Notes" to "# Topic
+
+**Date:** $date
+**Course:** 
+
+## Key concepts
+- 
+
+## Examples
+
+## Questions
+- [ ] "
+            "Meeting" -> "Meeting Notes" to "# Meeting
+
+**Date:** $date
+**Attendees:** 
+
+## Agenda
+1. 
+
+## Decisions
+- 
+
+## Action items
+- [ ] Owner — Task — Due date"
+            "Daily Journal" -> "Daily Journal" to "# Daily Journal
+
+**Date:** $date
+
+## Today
+
+## Highlights
+- 
+
+## To remember
+- "
+            else -> "Project Brief" to "# Project Brief
+
+## Objective
+
+## Scope
+
+## Milestones
+- [ ] 
+
+## Risks
+
+## Next steps"
         }
         val note = FolioNote(UUID.randomUUID().toString(), pair.first, pair.second)
         persist(listOf(note) + notes); selectedId = note.id
@@ -152,7 +196,15 @@ fun FolioScreen() {
         }
         inSection && (query.isBlank() || note.title.contains(query, true) ||
             note.body.contains(query, true) || note.tags.any { it.contains(query, true) })
-    }.let { matches ->\n        val pinnedFirst = matches.sortedByDescending { it.pinned }\n        when (sortMode) {\n            "Oldest first" -> pinnedFirst.sortedBy { it.updatedAt }\n            "Title A–Z" -> pinnedFirst.sortedBy { it.title.lowercase() }\n            "Title Z–A" -> pinnedFirst.sortedByDescending { it.title.lowercase() }\n            else -> pinnedFirst.sortedByDescending { it.updatedAt }\n        }\n    }
+    }.let { matches ->
+        val pinnedFirst = matches.sortedByDescending { it.pinned }
+        when (sortMode) {
+            "Oldest first" -> pinnedFirst.sortedBy { it.updatedAt }
+            "Title A–Z" -> pinnedFirst.sortedBy { it.title.lowercase() }
+            "Title Z–A" -> pinnedFirst.sortedByDescending { it.title.lowercase() }
+            else -> pinnedFirst.sortedByDescending { it.updatedAt }
+        }
+    }
 
     Scaffold(topBar = {
         TopAppBar(title = { Text("Folio", style = MaterialTheme.typography.headlineMedium) },
@@ -176,8 +228,18 @@ fun FolioScreen() {
                 OutlinedButton(onClick = { importBackup.launch(arrayOf("application/json", "text/json")) }) { Text("Restore backup") }
             }
             backupStatus?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
-            Text(filtered.size.toString() + " notes shown · " + notes.count { it.pinned && !it.archived && !it.deleted }.toString() + " pinned",
-                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(filtered.size.toString() + " notes shown · " + notes.count { it.pinned && !it.archived && !it.deleted }.toString() + " pinned",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Box {
+                    TextButton(onClick = { showSortMenu = true }) { Text("Sort: $sortMode") }
+                    DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                        listOf("Recently updated", "Oldest first", "Title A–Z", "Title Z–A").forEach { option ->
+                            DropdownMenuItem(text = { Text(option) }, onClick = { sortMode = option; showSortMenu = false })
+                        }
+                    }
+                }
+            }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("All Notes", "Pinned", "Archive", "Recently Deleted").forEach { name ->
@@ -260,7 +322,9 @@ fun FolioScreen() {
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             listOf("# " to "H1", "## " to "H2", "- " to "Bullet", "- [ ] " to "Task", "> " to "Quote").forEach { (prefix, label) ->
                                 TextButton(onClick = {
-                                    editingBody += (if (editingBody.isBlank() || editingBody.endsWith("\n")) "" else "\n") + prefix
+                                    editingBody += (if (editingBody.isBlank() || editingBody.endsWith("
+")) "" else "
+") + prefix
                                     updateSelected { it.copy(body = editingBody) }
                                 }) { Text(label, style = MaterialTheme.typography.labelSmall) }
                             }
@@ -310,7 +374,9 @@ fun FolioScreen() {
                             val send = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/markdown"
                                 putExtra(Intent.EXTRA_SUBJECT, note.title)
-                                putExtra(Intent.EXTRA_TEXT, "# " + note.title + "\n\n" + note.body)
+                                putExtra(Intent.EXTRA_TEXT, "# " + note.title + "
+
+" + note.body)
                             }
                             context.startActivity(Intent.createChooser(send, "Share note"))
                         }) { Text("Share / Export Markdown") }
