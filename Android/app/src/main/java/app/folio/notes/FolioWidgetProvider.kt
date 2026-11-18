@@ -13,7 +13,14 @@ class FolioWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == ACTION_QUICK_CAPTURE) {
             val prefs = context.getSharedPreferences("folio_local", Context.MODE_PRIVATE)
-            val notes = runCatching { JSONArray(prefs.getString("notes", "[]") ?: "[]") }.getOrDefault(JSONArray())
+            val rawNotes = prefs.getString("notes", "[]") ?: "[]"
+            val notes = try { JSONArray(rawNotes) } catch (_: Exception) {
+                prefs.edit().putString("notes_recovery_backup", rawNotes).commit()
+                val recoveryLaunch = Intent(context, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                context.startActivity(recoveryLaunch)
+                return
+            }
             val now = System.currentTimeMillis()
             val note = org.json.JSONObject()
                 .put("id", java.util.UUID.randomUUID().toString())
