@@ -105,3 +105,9 @@ This is a first usable direct-sync pass, not the complete release protocol. It c
 - Android exposes horizontal tag chips beneath folder filters, with an All tags reset.
 - macOS exposes a tag-filter menu above the note list.
 - Tag filters combine with the selected folder/inbox, search query and sort mode; clearing the tag filter restores the full selected view.
+
+
+## Expanded starter templates
+
+- Both apps now offer Research Notes, Reading List, Weekly Planner and Lecture Revision templates alongside the existing Class Notes, Meeting, Daily Journal and Project Brief templates.
+- Templates are ordinary editable Markdown notes, so their checklists work with the existing Tasks inbox and progress indicator.

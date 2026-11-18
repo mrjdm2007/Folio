@@ -247,6 +247,75 @@ fun FolioScreen() {
 
 ## To remember
 -"""
+            "Research Notes" -> "Research Notes" to """# Research question
+
+**Source / URL:**
+**Date accessed:** $date
+
+## Summary
+
+## Evidence
+-
+
+## Open questions
+- [ ]
+
+## References
+- """
+            "Reading List" -> "Reading List" to """# Reading List
+
+## To read
+- [ ] Title — Author — Link
+
+## Reading notes
+
+## Finished
+- [x] """
+            "Weekly Planner" -> "Weekly Planner" to """# Weekly Plan · $date
+
+## Priorities
+1.
+2.
+3.
+
+## Monday
+- [ ]
+
+## Tuesday
+- [ ]
+
+## Wednesday
+- [ ]
+
+## Thursday
+- [ ]
+
+## Friday
+- [ ]
+
+## Weekend
+- [ ]
+
+## Notes / review""" 
+            "Lecture Revision" -> "Lecture Revision" to """# Lecture Revision
+
+**Subject:**
+**Topic:**
+**Exam date:**
+
+## Core concepts
+-
+
+## Formulas / definitions
+-
+
+## Worked examples
+
+## Questions to practise
+- [ ]
+
+## Confidence check
+- [ ] Revisit weak areas""" 
             else -> "Project Brief" to """# Project Brief
 
 ## Objective
@@ -306,7 +375,7 @@ fun FolioScreen() {
                 IconButton(onClick = { showTemplates = true }) { Icon(Icons.Default.Add, "New note or template") }
                 DropdownMenu(expanded = showTemplates, onDismissRequest = { showTemplates = false }) {
                     DropdownMenuItem(text = { Text("Blank note") }, onClick = { showTemplates = false; newNote() })
-                    listOf("Class Notes", "Meeting", "Daily Journal", "Project Brief").forEach { kind ->
+                    listOf("Class Notes", "Meeting", "Daily Journal", "Project Brief", "Research Notes", "Reading List", "Weekly Planner", "Lecture Revision").forEach { kind ->
                         DropdownMenuItem(text = { Text(kind) }, onClick = { showTemplates = false; createTemplate(kind) })
                     }
                 }
