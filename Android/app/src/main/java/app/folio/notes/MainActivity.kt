@@ -42,6 +42,7 @@ fun FolioTheme(content: @Composable () -> Unit) {
 @Composable
 fun FolioScreen() {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val compactLayout = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 700
     val prefs = remember { context.getSharedPreferences("folio_local", android.content.Context.MODE_PRIVATE) }
     var notes by remember { mutableStateOf(loadNotes(prefs.getString("notes", "[]") ?: "[]") { corrupt ->
         // Preserve the original bytes before a later edit can overwrite malformed storage.
@@ -173,7 +174,7 @@ fun FolioScreen() {
                 Spacer(Modifier.height(6.dp))
             }
             Row(Modifier.weight(1f)) {
-                Column(Modifier.weight(0.9f)) {
+                if (!compactLayout || selectedId == null) Column(Modifier.weight(if (compactLayout) 1f else 0.9f)) {
                     LazyColumn {
                         items(filtered, key = { it.id }) { note ->
                             ListItem(
@@ -215,9 +216,10 @@ fun FolioScreen() {
                         }
                     }
                 }
-                Spacer(Modifier.width(10.dp))
+                if (!compactLayout) Spacer(Modifier.width(10.dp))
                 if (selectedId != null) {
-                    Column(Modifier.weight(1.1f)) {
+                    Column(Modifier.weight(if (compactLayout) 1f else 1.1f)) {
+                        if (compactLayout) TextButton(onClick = { selectedId = null }) { Text("← All notes") }
                         OutlinedTextField(value = editingTitle, onValueChange = { value ->
                             editingTitle = value; updateSelected { it.copy(title = value) }
                         }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Title") },
@@ -253,7 +255,7 @@ fun FolioScreen() {
                             context.startActivity(Intent.createChooser(send, "Share note"))
                         }) { Text("Share / Export Markdown") }
                     }
-                } else {
+                } else if (!compactLayout) {
                     Box(Modifier.weight(1.1f).fillMaxHeight()) {
                         Text("Select a note or create one.", modifier = Modifier.padding(24.dp))
                     }
