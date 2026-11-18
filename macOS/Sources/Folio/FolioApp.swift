@@ -106,6 +106,7 @@ final class NoteStore: ObservableObject {
     @Published var query = ""
     @Published var selectedFolder = "All Notes"
     private let fileURL: URL
+    private var recoveredCorruptStore = false
 
     init() {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -113,7 +114,7 @@ final class NoteStore: ObservableObject {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         fileURL = directory.appendingPathComponent("notes.json")
         load()
-        if notes.isEmpty { createNote(title: "Welcome to Folio") }
+        if notes.isEmpty && !recoveredCorruptStore { createNote(title: "Welcome to Folio") }
     }
     var folders: [String] { Array(Set(notes.filter { !$0.isDeleted }.map(\.folder))).sorted() }
     var visibleNotes: [FolioNote] {
@@ -230,13 +231,33 @@ final class NoteStore: ObservableObject {
         save()
     }
     private func load() {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
         guard let data = try? Data(contentsOf: fileURL) else { return }
-        notes = (try? JSONDecoder().decode([FolioNote].self, from: data)) ?? []
-        selection = notes.first(where: { !$0.isDeleted && !$0.isArchived })?.id
+        do {
+            notes = try JSONDecoder().decode([FolioNote].self, from: data)
+            selection = notes.first(where: { !$0.isDeleted && !$0.isArchived })?.id
+        } catch {
+            // Never silently replace an unreadable library with a new empty one.
+            let stamp = ISO8601DateFormatter().string(from: .now).replacingOccurrences(of: ":", with: "-")
+            let recoveryURL = fileURL.deletingLastPathComponent()
+                .appendingPathComponent("notes-corrupt-\\(stamp).json")
+            do {
+                try FileManager.default.moveItem(at: fileURL, to: recoveryURL)
+                recoveredCorruptStore = true
+            } catch {
+                // Keep the original file in place if recovery cannot be moved.
+                recoveredCorruptStore = true
+            }
+        }
     }
     private func save() {
         guard let data = try? JSONEncoder().encode(notes) else { return }
-        try? data.write(to: fileURL, options: .atomic)
+        do {
+            try data.write(to: fileURL, options: .atomic)
+        } catch {
+            // Keep the in-memory notes; a later edit or relaunch must not imply a successful save.
+            assertionFailure("Folio could not save its local note store: \\(error.localizedDescription)")
+        }
     }
 }
 
