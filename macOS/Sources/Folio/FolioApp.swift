@@ -537,6 +537,8 @@ struct NoteEditor: View {
     @State private var folder = "Notes"
     @State private var tags = ""
     @State private var showRenderedPreview = false
+    @State private var showingAttachmentPicker = false
+    @State private var attachmentMessage: String?
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -574,6 +576,25 @@ struct NoteEditor: View {
                 Button(showRenderedPreview ? "Edit" : "Preview") { showRenderedPreview.toggle() }
                 Text("Markdown").font(.caption).foregroundStyle(.secondary)
             }.buttonStyle(.borderless)
+            HStack {
+                Label("Documents · \(store.attachments.filter { $0.noteID == note.id }.count)", systemImage: "paperclip")
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button { showingAttachmentPicker = true } label: { Label("Attach file", systemImage: "plus") }
+            }
+            ForEach(store.attachments.filter { $0.noteID == note.id }) { item in
+                HStack {
+                    Button(item.name) { NSWorkspace.shared.open(store.attachmentURL(item)) }
+                        .buttonStyle(.link).lineLimit(1)
+                    Spacer()
+                    Button(role: .destructive) { store.removeAttachment(item) } label: {
+                        Image(systemName: "trash")
+                    }.buttonStyle(.borderless).help("Remove attachment")
+                }
+            }
+            if let attachmentMessage {
+                Text(attachmentMessage).font(.caption).foregroundStyle(.secondary)
+            }
             Divider()
             if showRenderedPreview {
                 ScrollView {
