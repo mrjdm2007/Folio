@@ -29,6 +29,24 @@ struct FolioNote: Identifiable, Codable, Equatable {
     var isDeleted = false
     var createdAt: Date = .now
     var updatedAt: Date = .now
+
+    private enum CodingKeys: String, CodingKey {
+        case id, title, body, folder, tags, isPinned, isArchived, isDeleted, createdAt, updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        title = try values.decodeIfPresent(String.self, forKey: .title) ?? "Untitled Note"
+        body = try values.decodeIfPresent(String.self, forKey: .body) ?? ""
+        folder = try values.decodeIfPresent(String.self, forKey: .folder) ?? "Notes"
+        tags = try values.decodeIfPresent([String].self, forKey: .tags) ?? []
+        isPinned = try values.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
+        isArchived = try values.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false
+        isDeleted = try values.decodeIfPresent(Bool.self, forKey: .isDeleted) ?? false
+        createdAt = try values.decodeIfPresent(Date.self, forKey: .createdAt) ?? .now
+        updatedAt = try values.decodeIfPresent(Date.self, forKey: .updatedAt) ?? .now
+    }
 }
 
 @MainActor
