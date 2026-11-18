@@ -826,7 +826,7 @@ private fun MarkdownPreview(markdown: String, modifier: Modifier = Modifier) {
         markdown.lines().forEach { raw ->
             val line = raw.trimEnd()
             val clean = line.trimStart()
-            if (clean.startsWith("\\`\\`\\`")) {
+            if (clean.startsWith("```")) {
                 inCodeBlock = !inCodeBlock
             } else if (inCodeBlock) {
                 Text(line, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
@@ -841,7 +841,7 @@ private fun MarkdownPreview(markdown: String, modifier: Modifier = Modifier) {
                 val isQuote = clean.startsWith("> ")
                 val task = Regex("^[-*+] \\[([ xX])\\] (.*)$").matchEntire(clean)
                 val bullet = Regex("^[-*+] (.*)$").matchEntire(clean)
-                val numbered = Regex("^\\\\d+[.)] (.*)$").matchEntire(clean)
+                val numbered = Regex("^\\d+[.)] (.*)$").matchEntire(clean)
                 val content = when {
                     headingLevel in 1..6 -> clean.drop(headingLevel).trimStart()
                     isQuote -> clean.removePrefix("> ")
@@ -867,7 +867,7 @@ private fun MarkdownPreview(markdown: String, modifier: Modifier = Modifier) {
 
 private fun markdownInline(value: String): androidx.compose.ui.text.AnnotatedString =
     androidx.compose.ui.text.buildAnnotatedString {
-        val pattern = Regex("\\\\*\\\\*(.+?)\\\\*\\\\*|(?<!\\\\*)\\\\*([^*]+)\\\\*|(?<!_)_([^_]+)_|\\`[^\\`]+\\`")
+        val pattern = Regex("\\*\\*(.+?)\\*\\*|(?<!\\*)\\*([^*]+)\\*|(?<!_)_([^_]+)_|`([^`]+)`")
         var cursor = 0
         pattern.findAll(value).forEach { match ->
             append(value.substring(cursor, match.range.first))
