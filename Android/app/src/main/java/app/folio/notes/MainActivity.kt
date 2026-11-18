@@ -56,6 +56,7 @@ fun FolioScreen() {
     var editingBody by remember { mutableStateOf("") }
     var editingFolder by remember { mutableStateOf("Notes") }
     var editingTags by remember { mutableStateOf("") }
+    var showRenderedPreview by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         val first = notes.firstOrNull { !it.deleted && !it.archived }
         if (first != null && selectedId == null) {
@@ -244,9 +245,26 @@ fun FolioScreen() {
                                 }) { Text(label, style = MaterialTheme.typography.labelSmall) }
                             }
                         }
-                        OutlinedTextField(value = editingBody, onValueChange = { value ->
-                            editingBody = value; updateSelected { it.copy(body = value) }
-                        }, modifier = Modifier.weight(1f).fillMaxWidth(), placeholder = { Text("Write in Markdown…") })
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Markdown", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            TextButton(onClick = { showRenderedPreview = !showRenderedPreview }) { Text(if (showRenderedPreview) "Edit source" else "Preview") }
+                        }
+                        if (showRenderedPreview) {
+                            androidx.compose.foundation.lazy.LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(8.dp)) {
+                                items(editingBody.lines()) { line ->
+                                    val clean = line.trimStart()
+                                    val heading = clean.startsWith("#")
+                                    val content = clean.trimStart('#', ' ').let { if (clean.startsWith("- ")) "• " + clean.removePrefix("- ") else it }
+                                    Text(content, modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                                        style = when { clean.startsWith("# ") -> MaterialTheme.typography.headlineSmall; clean.startsWith("## ") -> MaterialTheme.typography.titleLarge; clean.startsWith("### ") -> MaterialTheme.typography.titleMedium; clean.startsWith("> ") -> MaterialTheme.typography.bodyLarge; else -> MaterialTheme.typography.bodyMedium },
+                                        color = if (clean.startsWith("> ")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                                }
+                            }
+                        } else {
+                            OutlinedTextField(value = editingBody, onValueChange = { value ->
+                                editingBody = value; updateSelected { it.copy(body = value) }
+                            }, modifier = Modifier.weight(1f).fillMaxWidth(), placeholder = { Text("Write in Markdown…") })
+                        }
                         Text(editingBody.split(Regex("\\s+")).count { it.isNotBlank() }.toString() + " words · " + editingBody.length + " characters",
                             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         TextButton(onClick = {
