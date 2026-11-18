@@ -2,6 +2,9 @@ package app.folio.notes
 
 import android.content.Context
 import android.util.Base64
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
+import android.content.SharedPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.InetSocketAddress
@@ -27,20 +30,27 @@ object FolioPeerSync {
     private const val MAX_FRAME = 8 * 1024 * 1024
     @Volatile private var listener: ServerSocket? = null
 
+    private fun secretPrefs(context: Context): SharedPreferences {
+        val master = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
+        return EncryptedSharedPreferences.create(context, "folio_peer_keys", master,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM)
+    }
+
     fun pairingSecret(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(SECRET_KEY, "") ?: ""
+        secretPrefs(context).getString(SECRET_KEY, "") ?: ""
 
     fun createPairingSecret(context: Context): String {
         val bytes = ByteArray(24).also { SecureRandom().nextBytes(it) }
         val secret = Base64.encodeToString(bytes, Base64.NO_WRAP or Base64.URL_SAFE)
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(SECRET_KEY, secret).apply()
+        secretPrefs(context).edit().putString(SECRET_KEY, secret).apply()
         startListener(context)
         return secret
     }
 
     fun setPairingSecret(context: Context, secret: String) {
         require(secret.length >= 32) { "Pairing key must contain at least 32 characters." }
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(SECRET_KEY, secret).apply()
+        secretPrefs(context).edit().putString(SECRET_KEY, secret).apply()
         startListener(context)
     }
 
