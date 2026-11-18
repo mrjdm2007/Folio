@@ -52,6 +52,8 @@ fun FolioScreen() {
     var permanentDeleteId by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
     var section by remember { mutableStateOf("All Notes") }
+    var sortMode by remember { mutableStateOf("Recently updated") }
+    var showSortMenu by remember { mutableStateOf(false) }
     var editingTitle by remember { mutableStateOf("") }
     var editingBody by remember { mutableStateOf("") }
     var editingFolder by remember { mutableStateOf("Notes") }
@@ -150,7 +152,7 @@ fun FolioScreen() {
         }
         inSection && (query.isBlank() || note.title.contains(query, true) ||
             note.body.contains(query, true) || note.tags.any { it.contains(query, true) })
-    }.sortedWith(compareByDescending<FolioNote> { it.pinned }.thenByDescending { it.updatedAt })
+    }.let { matches ->\n        val pinnedFirst = matches.sortedByDescending { it.pinned }\n        when (sortMode) {\n            "Oldest first" -> pinnedFirst.sortedBy { it.updatedAt }\n            "Title A–Z" -> pinnedFirst.sortedBy { it.title.lowercase() }\n            "Title Z–A" -> pinnedFirst.sortedByDescending { it.title.lowercase() }\n            else -> pinnedFirst.sortedByDescending { it.updatedAt }\n        }\n    }
 
     Scaffold(topBar = {
         TopAppBar(title = { Text("Folio", style = MaterialTheme.typography.headlineMedium) },
