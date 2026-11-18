@@ -349,6 +349,7 @@ struct NoteEditor: View {
     @State private var bodyText = ""
     @State private var folder = "Notes"
     @State private var tags = ""
+    @State private var showRenderedPreview = false
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -371,10 +372,25 @@ struct NoteEditor: View {
                 Button("Task") { bodyText += "\n- [ ] Task\n" }
                 Button("Quote") { bodyText += "\n> Quote\n" }
                 Spacer()
+                Button(showRenderedPreview ? "Edit" : "Preview") { showRenderedPreview.toggle() }
                 Text("Markdown").font(.caption).foregroundStyle(.secondary)
             }.buttonStyle(.borderless)
             Divider()
-            TextEditor(text: $bodyText).font(.system(size: 15)).scrollContentBackground(.hidden)
+            if showRenderedPreview {
+                ScrollView {
+                    Group {
+                        if let rendered = try? AttributedString(markdown: bodyText, options: .init(interpretedSyntax: .full)) {
+                            Text(rendered).frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            Text(bodyText).frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }.padding(.vertical, 8)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background(Color(nsColor: .textBackgroundColor).opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
+            } else {
+                TextEditor(text: $bodyText).font(.system(size: 15)).scrollContentBackground(.hidden)
+            }
             HStack {
                 Text("Autosaved locally"); Spacer()
                 Text("\(bodyText.split(whereSeparator: \.isWhitespace).count) words")
@@ -426,7 +442,7 @@ struct SettingsView: View {
                 Text("Folders, tags, full-text search, pinning, archive, recently deleted and autosave.")
             }
             Section("Still in development") {
-                Text("Cloud sync, end-to-end encryption, biometric Safe Folder, rich-text blocks, attachments, PDF annotation, audio capture and handwriting.")
+                Text("Cloud sync requires Supabase project configuration and deployed migrations. Rich Markdown preview is available; PDF/file attachments and platform widgets are being added incrementally. Handwriting and drawing are intentionally excluded.")
             }
         }.padding(20).frame(width: 460)
             .fileExporter(isPresented: $showingExporter, document: backupDocument,
