@@ -238,7 +238,7 @@ final class NoteStore: ObservableObject {
             let location: Bool
             switch selectedFolder {
             case "Pinned": location = note.isPinned && !note.isArchived && !note.isDeleted
-            case "Tasks": location = !note.isArchived && !note.isDeleted && note.body.range(of: #"(?m)^\\s*- \\[ \\]"#, options: .regularExpression) != nil
+            case "Tasks": location = !note.isArchived && !note.isDeleted && note.body.range(of: #"(?m)^\s*- \[ \]"#, options: .regularExpression) != nil
             case "Archive": location = note.isArchived && !note.isDeleted
             case "Recently Deleted": location = note.isDeleted
             case "All Notes": location = !note.isArchived && !note.isDeleted
@@ -619,10 +619,10 @@ struct NoteEditor: View {
                 TextEditor(text: $bodyText).font(.system(size: 15)).scrollContentBackground(.hidden)
             }
             let tasks = bodyText.components(separatedBy: .newlines).filter {
-                $0.range(of: #"^\\s*- \\[([ xX])\\]"#, options: .regularExpression) != nil
+                $0.range(of: #"^\s*- \[([ xX])\]"#, options: .regularExpression) != nil
             }
             let completedTasks = tasks.filter {
-                $0.range(of: #"^\\s*- \\[xX\\]"#, options: .regularExpression) != nil
+                $0.range(of: #"^\s*- \[xX\]"#, options: .regularExpression) != nil
             }.count
             HStack {
                 Text("Autosaved locally"); Spacer()
