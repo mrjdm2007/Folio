@@ -1,0 +1,30 @@
+name: Folio CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  macos-build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift build
+        run: cd macOS && swift build
+  android-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Android assemble (requires Gradle wrapper)
+        run: |
+          if [ -f Android/gradlew ]; then
+            cd Android && ./gradlew :app:assembleDebug
+          else
+            echo "Gradle wrapper not yet committed; open Android project in Android Studio to generate it."
+            exit 1
+          fi
