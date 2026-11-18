@@ -572,7 +572,12 @@ struct NoteEditor: View {
                 Button("Bullet") { bodyText += "\n- List item\n" }
                 Button("Task") { bodyText += "\n- [ ] Task\n" }
                 Button("Quote") { bodyText += "\n> Quote\n" }
+                Button("Bold") { bodyText += " **bold** " }
+                Button("Italic") { bodyText += " _italic_ " }
+                Button("Code") { bodyText += " `code` " }
+                Button("Link") { bodyText += " [text](https://) " }
                 Spacer()
+                Button("Export .md") { exportMarkdown() }
                 Button(showRenderedPreview ? "Edit" : "Preview") { showRenderedPreview.toggle() }
                 Text("Markdown").font(.caption).foregroundStyle(.secondary)
             }.buttonStyle(.borderless)
@@ -611,10 +616,21 @@ struct NoteEditor: View {
             } else {
                 TextEditor(text: $bodyText).font(.system(size: 15)).scrollContentBackground(.hidden)
             }
+            let tasks = bodyText.components(separatedBy: .newlines).filter {
+                $0.range(of: #"^\\s*- \\[([ xX])\\]"#, options: .regularExpression) != nil
+            }
+            let completedTasks = tasks.filter {
+                $0.range(of: #"^\\s*- \\[xX\\]"#, options: .regularExpression) != nil
+            }.count
             HStack {
                 Text("Autosaved locally"); Spacer()
+                if !tasks.isEmpty { Text("\(completedTasks)/\(tasks.count) tasks · ") }
                 Text("\(bodyText.split(whereSeparator: \.isWhitespace).count) words")
             }.font(.caption).foregroundStyle(.secondary)
+            if !tasks.isEmpty {
+                ProgressView(value: Double(completedTasks), total: Double(tasks.count))
+                    .tint(Color.accentColor)
+            }
         }.padding(24)
             .fileImporter(isPresented: $showingAttachmentPicker, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
                 do { for url in try result.get() { try store.addAttachment(url, to: note.id) }; attachmentMessage = "Documents attached." }
@@ -626,6 +642,18 @@ struct NoteEditor: View {
             .onChange(of: bodyText) { _ in persist() }
             .onChange(of: folder) { _ in persist() }
             .onChange(of: tags) { _ in persist() }
+    }
+    private func exportMarkdown() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.plainText]
+        panel.nameFieldStringValue = (title.isEmpty ? "Folio-Note" : title)
+            .replacingOccurrences(of: "/", with: "-") + ".md"
+        panel.canCreateDirectories = true
+        if panel.runModal() == .OK, let url = panel.url {
+            let markdown = "# \\(title)\\n\\n" + bodyText
+            do { try Data(markdown.utf8).write(to: url, options: .atomic) }
+            catch { attachmentMessage = "Markdown export failed: \\(error.localizedDescription)" }
+        }
     }
     private func loadDraft() { title = note.title; bodyText = note.body; folder = note.folder; tags = note.tags.joined(separator: ", ") }
     private func persist() { store.update(note.id, title: title, body: bodyText, folder: folder, tags: tags) }
