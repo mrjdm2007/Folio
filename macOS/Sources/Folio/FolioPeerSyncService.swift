@@ -2,6 +2,7 @@ import Foundation
 import Network
 import CryptoKit
 import CommonCrypto
+import Security
 
 /// Encrypted peer transport shared with Android's FolioPeerSync wire format.
 /// Pairing uses a high-entropy secret copied between devices out of band.
@@ -62,10 +63,12 @@ final class FolioPeerSyncService {
                 let object = try JSONSerialization.jsonObject(with: plaintext) as? [String: Any]
                 guard (object?["protocol"] as? Int) == 1,
                       let raw = object?["notes"] as? [[String: Any]] else { throw SyncError.invalidMessage }
-                let remoteData = try JSONSerialization.data(withJSONObject: raw)
-                let remote = try JSONDecoder().decode([PortableFolioNote].self, from: remoteData)
+                let remote = try raw.map { try Self.portable(fromWire: $0) }
                 let merged = try self.exchange(remote)
-                self.sendExchange(merged, on: connection) { _ in connection.cancel() }
+                let response = try JSONSerialization.data(withJSONObject: [
+                    "protocol": 1, "notes": merged.map(Self.wireDictionary)
+                ])
+                self.sendFrame(try self.encrypt(response), on: connection) { _ in connection.cancel() }
             } catch { connection.cancel(); NSLog("Folio peer request rejected: %@", error.localizedDescription) }
         }
     }
@@ -74,8 +77,7 @@ final class FolioPeerSyncService {
                               completion: @escaping (Result<[PortableFolioNote], Error>) -> Void) {
         do {
             let payload = try JSONSerialization.data(withJSONObject: [
-                "protocol": 1,
-                "notes": try JSONSerialization.jsonObject(with: JSONEncoder().encode(notes))
+                "protocol": 1, "notes": notes.map(Self.wireDictionary)
             ])
             let frame = try encrypt(payload)
             sendFrame(frame, on: connection) { [weak self] result in
@@ -87,8 +89,7 @@ final class FolioPeerSyncService {
                         let object = try JSONSerialization.jsonObject(with: clear) as? [String: Any]
                         guard (object?["protocol"] as? Int) == 1,
                               let raw = object?["notes"] as? [[String: Any]] else { throw SyncError.invalidMessage }
-                        let data = try JSONSerialization.data(withJSONObject: raw)
-                        completion(.success(try JSONDecoder().decode([PortableFolioNote].self, from: data)))
+                        completion(.success(try raw.map { try Self.portable(fromWire: $0) }))
                     } catch { completion(.failure(error)) }
                 }
             }
@@ -127,6 +128,24 @@ final class FolioPeerSyncService {
             }
         }
         collect(Data())
+    }
+
+
+    private static func wireDictionary(_ note: PortableFolioNote) -> [String: Any] {
+        ["id": note.id, "title": note.title, "body": note.body, "folder": note.folder,
+         "tags": note.tags, "pinned": note.isPinned, "archived": note.isArchived,
+         "deleted": note.isDeleted, "createdAt": note.createdAtMs, "updatedAt": note.updatedAtMs]
+    }
+
+    private static func portable(fromWire value: [String: Any]) throws -> PortableFolioNote {
+        guard let id = value["id"] as? String, UUID(uuidString: id) != nil else { throw SyncError.invalidMessage }
+        return PortableFolioNote(
+            id: id, title: value["title"] as? String ?? "Untitled Note",
+            body: value["body"] as? String ?? "", folder: value["folder"] as? String ?? "Notes",
+            tags: value["tags"] as? [String] ?? [], isPinned: value["pinned"] as? Bool ?? false,
+            isArchived: value["archived"] as? Bool ?? false, isDeleted: value["deleted"] as? Bool ?? false,
+            createdAtMs: (value["createdAt"] as? NSNumber)?.int64Value ?? 0,
+            updatedAtMs: (value["updatedAt"] as? NSNumber)?.int64Value ?? 0)
     }
 
     private func encrypt(_ clear: Data) throws -> Data {
