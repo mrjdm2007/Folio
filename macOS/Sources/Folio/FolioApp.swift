@@ -546,6 +546,11 @@ struct FolioRootView: View {
     @EnvironmentObject private var store: NoteStore
     private var sidebarItems: [String] { ["All Notes", "Pinned", "Tasks"] + store.folders + ["Archive", "Recently Deleted"] }
     var body: some View {
+        let activeNotes = store.notes.filter { !$0.isDeleted && !$0.isArchived }
+        let taskLines = activeNotes.flatMap { $0.body.components(separatedBy: "\n").filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix("- [") } }
+        let completedTasks = taskLines.filter { $0.contains("[x]") || $0.contains("[X]") }.count
+        let openTasks = max(0, taskLines.count - completedTasks)
+        let urgentNotes = activeNotes.filter { $0.priority == "Urgent" }.count
         NavigationSplitView {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
@@ -564,13 +569,37 @@ struct FolioRootView: View {
                         .help("Open or create today's Daily Note")
                     Menu {
                         Button("Daily Note · Today") { store.createDailyNote() }
+                            .keyboardShortcut("d", modifiers: [.command, .shift])
                         Button("Blank Note") { store.createNote() }
+                            .keyboardShortcut("n", modifiers: .command)
                         Divider()
                         ForEach(["Class Notes", "Meeting", "Daily Journal", "Project Brief", "Research Notes", "Reading List", "Weekly Planner", "Lecture Revision"], id: \.self) { kind in
                             Button(kind) { store.createTemplate(kind) }
                         }
                     } label: { Image(systemName: "square.and.pencil") }.help("New note or template")
                 }.padding(.bottom, 10)
+                HStack(spacing: 7) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("LIBRARY").font(.system(size: 8, weight: .bold, design: .monospaced)).tracking(1.1).foregroundStyle(.secondary)
+                        Text("\(activeNotes.count)").font(.system(size: 21, weight: .semibold, design: .rounded)).foregroundStyle(Color(red: 0.73, green: 0.95, blue: 0.42))
+                        Text("NOTES").font(.system(size: 8, weight: .medium, design: .monospaced)).foregroundStyle(.secondary)
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                    Rectangle().fill(Color.white.opacity(0.09)).frame(width: 1, height: 42)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("OPEN TASKS").font(.system(size: 8, weight: .bold, design: .monospaced)).tracking(0.7).foregroundStyle(.secondary)
+                        Text("\(openTasks)").font(.system(size: 21, weight: .semibold, design: .rounded)).foregroundStyle(Color(red: 1.0, green: 0.72, blue: 0.36))
+                        Text("\(completedTasks) COMPLETED").font(.system(size: 8, weight: .medium, design: .monospaced)).foregroundStyle(.secondary)
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                    Rectangle().fill(Color.white.opacity(0.09)).frame(width: 1, height: 42)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("URGENT").font(.system(size: 8, weight: .bold, design: .monospaced)).tracking(0.7).foregroundStyle(.secondary)
+                        Text("\(urgentNotes)").font(.system(size: 21, weight: .semibold, design: .rounded)).foregroundStyle(urgentNotes > 0 ? Color.red : .secondary)
+                        Text("PRIORITY").font(.system(size: 8, weight: .medium, design: .monospaced)).foregroundStyle(.secondary)
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                }.padding(11)
+                    .background(LinearGradient(colors: [Color.white.opacity(0.075), Color.white.opacity(0.025)], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 13))
+                    .overlay(RoundedRectangle(cornerRadius: 13).stroke(Color.white.opacity(0.08), lineWidth: 1))
+                    .padding(.bottom, 4)
                 ForEach(sidebarItems, id: \.self) { item in
                     Button { store.selectedFolder = item } label: {
                         Label(item, systemImage: icon(for: item)).frame(maxWidth: .infinity, alignment: .leading)
@@ -631,8 +660,13 @@ struct FolioRootView: View {
                                 Spacer(); Text(note.updatedAt, style: .date)
                             }.font(.caption2).foregroundStyle(.tertiary)
                         }
+                        .padding(10)
+                        .background(LinearGradient(colors: [Color.white.opacity(0.065), Color.white.opacity(0.018)], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 13))
+                        .overlay(RoundedRectangle(cornerRadius: 13).stroke(Color.white.opacity(0.065), lineWidth: 1))
+                        .shadow(color: .black.opacity(0.16), radius: 5, x: 0, y: 3)
                         .tag(note.id)
-                        .listRowBackground(Color.white.opacity(0.025))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                         .contextMenu {
                             Button(note.isPinned ? "Unpin" : "Pin") { store.togglePin(note) }
                             Button("Duplicate") { store.duplicate(note) }
