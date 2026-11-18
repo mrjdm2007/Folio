@@ -679,7 +679,7 @@ struct NoteEditor: View {
                 } label: { Image(systemName: "link.badge.plus") }
                     .help("Link another note")
             }
-            let linkPattern = try? NSRegularExpression(pattern: #"[[([^]]+)]]"#)
+            let linkPattern = try? NSRegularExpression(pattern: #"\[\[([^\]]+)\]\]"#)
             let linkMatches = linkPattern?.matches(in: bodyText, range: NSRange(bodyText.startIndex..., in: bodyText)) ?? []
             let linkTitles = linkMatches.compactMap { match -> String? in
                 guard let range = Range(match.range(at: 1), in: bodyText) else { return nil }
