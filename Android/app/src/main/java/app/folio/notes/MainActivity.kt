@@ -335,14 +335,14 @@ fun FolioScreen() {
                     }, enabled = peerAddress.isNotBlank() && pairingKey.length >= 32) { Text("Sync now") }
                     Text(syncMessage, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("Both devices must use the same key and be reachable on the same Wi-Fi or private VPN. Keep this key private.",
-                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)                    HorizontalDivider()
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { exportBackup.launch("Folio-Backup.json") }) { Text("Export library") }
+                        OutlinedButton(onClick = { importBackup.launch(arrayOf("application/json", "text/json")) }) { Text("Restore backup") }
+                    }
+                    backupStatus?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { exportBackup.launch("Folio-Backup.json") }) { Text("Export backup") }
-                OutlinedButton(onClick = { importBackup.launch(arrayOf("application/json", "text/json")) }) { Text("Restore backup") }
-            }
-            backupStatus?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text(filtered.size.toString() + " notes shown · " + notes.count { it.pinned && !it.archived && !it.deleted }.toString() + " pinned",
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
