@@ -29,6 +29,7 @@ object FolioPeerSync {
     private const val SECRET_KEY = "p2p_pairing_secret"
     private const val MAX_FRAME = 8 * 1024 * 1024
     @Volatile private var listener: ServerSocket? = null
+    @Volatile var onRemoteNotes: ((String) -> Unit)? = null
 
     private fun secretPrefs(context: Context): SharedPreferences {
         val master = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
@@ -107,6 +108,7 @@ object FolioPeerSync {
             val merged = merge(local, remote)
             prefs.edit().putString("notes", merged.toString()).commit()
             FolioWidgetProvider.refresh(context)
+            onRemoteNotes?.invoke(merged.toString())
             val response = JSONObject().put("protocol", 1).put("notes", merged)
             writeFrame(it, encrypt(response.toString(), secret))
         }
