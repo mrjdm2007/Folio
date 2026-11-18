@@ -4,6 +4,27 @@
 
 create extension if not exists pgcrypto;
 
+-- The earlier core migration created a different legacy folio_attachments shape
+-- (owner_id/document_id/object_path). Move it aside before creating the encrypted
+-- sync table, whose policies and clients use user_id/note_id/storage_path.
+do $
+begin
+    if to_regclass('public.folio_attachments') is not null
+       and exists (
+           select 1 from information_schema.columns
+            where table_schema = 'public' and table_name = 'folio_attachments'
+              and column_name = 'owner_id'
+       )
+       and not exists (
+           select 1 from information_schema.columns
+            where table_schema = 'public' and table_name = 'folio_attachments'
+              and column_name = 'user_id'
+       ) then
+        alter table public.folio_attachments rename to folio_document_attachments;
+    end if;
+end
+$;
+
 create table if not exists public.folio_notes (
     id uuid not null,
     user_id uuid not null references auth.users(id) on delete cascade,
