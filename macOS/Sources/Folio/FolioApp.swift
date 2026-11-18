@@ -593,7 +593,7 @@ struct FolioRootView: View {
                     Rectangle().fill(Color.white.opacity(0.09)).frame(width: 1, height: 42)
                     VStack(alignment: .leading, spacing: 3) {
                         Text("URGENT").font(.system(size: 8, weight: .bold, design: .monospaced)).tracking(0.7).foregroundStyle(.secondary)
-                        Text("\(urgentNotes)").font(.system(size: 21, weight: .semibold, design: .rounded)).foregroundStyle(urgentNotes > 0 ? Color.red : .secondary)
+                        Text("\(urgentNotes)").font(.system(size: 21, weight: .semibold, design: .rounded)).foregroundStyle(urgentNotes > 0 ? Color.red : Color.secondary)
                         Text("PRIORITY").font(.system(size: 8, weight: .medium, design: .monospaced)).foregroundStyle(.secondary)
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }.padding(11)
