@@ -44,3 +44,8 @@ For the same note ID, if local and remote have diverged from a shared parent rev
 - [ ] Account deletion and key recovery behaviour documented.
 
 Until every item above is complete, use local notes and JSON backups for important data. The schema and hardened RPC alone do not provide end-to-end encryption or cross-device sync. No native app currently calls Supabase or encrypts its local note data for sync. Do not enable sync or upload note content until client cryptography, auth, queueing and conflict handling are implemented and tested.
+
+
+## Peer-to-peer direction
+
+The product direction has changed from hosted Supabase note storage to direct device-to-device replication. Both devices are peers; the app opens immediately on local data and starts a bounded sync attempt when opened. Use same-LAN discovery first and an explicitly configured private VPN for remote access. Do not expose a public unauthenticated listener or add an external note-storage dependency. See [P2P_SYNC_PROTOCOL.md](P2P_SYNC_PROTOCOL.md) for the security, replication, offline, conflict, attachment, and acceptance-test contract. Existing Supabase migrations are dormant backend groundwork and are not used by the native apps; they do not implement P2P sync.
