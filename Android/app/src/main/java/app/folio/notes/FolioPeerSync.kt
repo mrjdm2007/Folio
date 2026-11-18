@@ -114,10 +114,13 @@ object FolioPeerSync {
                     val oldTime = previous.optLong("updatedAt")
                     val newTime = note.optLong("updatedAt")
                     if (newTime > oldTime) byId[id] = JSONObject(note.toString())
-                    else if (newTime == oldTime && note.toString() != previous.toString()) {
-                        // Preserve concurrent same-clock edits as a separate recoverable note.
+                    else if (newTime == oldTime && !sameContent(note, previous)) {
+                        // Deterministic conflict identity prevents duplicate copies on retry.
                         val conflict = JSONObject(note.toString())
-                        conflict.put("id", id + "-conflict-" + conflict.optLong("updatedAt") + "-" + conflict.optString("title").hashCode().toUInt().toString(16))
+                        val fingerprint = listOf(id, note.optString("title"), note.optString("body"),
+                            note.optString("folder"), note.optString("tags"), note.optBoolean("pinned").toString()).joinToString("|")
+                        val conflictId = UUID.nameUUIDFromBytes(fingerprint.toByteArray(Charsets.UTF_8)).toString()
+                        conflict.put("id", conflictId)
                         conflict.put("title", conflict.optString("title") + " (Sync conflict)")
                         conflict.put("folder", "Sync Conflicts")
                         conflict.put("pinned", false)
@@ -128,6 +131,11 @@ object FolioPeerSync {
         }
         ingest(local); ingest(remote)
         return JSONArray().also { result -> byId.values.forEach(result::put) }
+    }
+
+    private fun sameContent(a: JSONObject, b: JSONObject): Boolean {
+        val fields = listOf("title", "body", "folder", "tags", "pinned", "archived", "deleted")
+        return fields.all { a.optString(it) == b.optString(it) }
     }
 
     private fun encrypt(plain: String, secret: String): String {
