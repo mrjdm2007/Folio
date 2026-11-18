@@ -2,14 +2,14 @@
 
 ## Current state
 
-The database migrations create the per-user encrypted-note, immutable revision-history, and private attachment metadata/storage schema. The `folio_push_note` RPC in `20261118000200_folio_atomic_sync_push.sql` performs an atomic compare-and-write against the expected revision and reports conflicts instead of overwriting them. Row-level security restricts every record and object to its authenticated owner.
+The database migrations create the per-user encrypted-note, immutable revision-history, and private attachment metadata/storage schema. The `folio_push_note` RPC in `20261118000200_folio_atomic_sync_push.sql` performs an atomic compare-and-write against the expected revision and reports conflicts instead of overwriting them. The follow-up hardening migration `20261118000300_folio_sync_write_hardening.sql` revokes direct note/revision writes from authenticated clients and makes the RPC the sole note-envelope write path. It verifies the SHA-256 hash of ciphertext plus nonce. Row-level security restricts every record and object to its authenticated owner.
 
 **This is backend infrastructure, not a claim that client sync is finished.** The current macOS and Android app builds do not yet authenticate to Supabase, encrypt local notes, run a sync queue, or expose account settings. Do not treat the feature as enabled until those client modules are shipped and tested.
 
 ## Provisioning
 
 1. Create a Supabase project.
-2. Apply migrations with `supabase db push` (or run the migration in the SQL editor).
+2. Apply all migrations in timestamp order with `supabase db push` (or run each migration in timestamp order in the SQL editor), including the write-hardening migration.
 3. Configure the project URL and publishable/anon key in each app's build configuration. Never put a service-role key in either client.
 4. Enable email/password authentication and configure email confirmation / redirect URLs.
 5. Keep the encrypted attachment bucket private. The migration sets a 50 MiB per-object limit.
@@ -43,4 +43,4 @@ For the same note ID, if local and remote have diverged from a shared parent rev
 - [ ] No service-role key, plaintext note, or encryption key in logs or client bundles.
 - [ ] Account deletion and key recovery behaviour documented.
 
-Until every item above is complete, use local notes and JSON backups for important data. The schema alone does not provide end-to-end encryption or cross-device sync.
+Until every item above is complete, use local notes and JSON backups for important data. The schema and hardened RPC alone do not provide end-to-end encryption or cross-device sync. No native app currently calls Supabase or encrypts its local note data for sync. Do not enable sync or upload note content until client cryptography, auth, queueing and conflict handling are implemented and tested.
