@@ -6,7 +6,8 @@ on:
     branches: [main]
 concurrency:
   group: folio-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Keep queued platform builds alive while the branch receives follow-up fixes.
+  cancel-in-progress: false
 jobs:
   macos-build:
     runs-on: macos-15
