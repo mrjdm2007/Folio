@@ -237,15 +237,38 @@ private data class FolioNote(
     val archived: Boolean = false, val deleted: Boolean = false,
     val updatedAt: Long = System.currentTimeMillis()
 )
-private fun encodeBackup(notes: List<FolioNote>): String =
-    JSONObject().put("schemaVersion", 1).put("exportedAt", System.currentTimeMillis())
-        .put("notes", JSONArray(encodeNotes(notes))).toString(2)
+private fun encodeBackup(notes: List<FolioNote>): String {
+    val portable = JSONArray()
+    notes.forEach { note ->
+        val tags = JSONArray().apply { note.tags.forEach { put(it) } }
+        portable.put(JSONObject().put("id", note.id).put("title", note.title).put("body", note.body)
+            .put("folder", note.folder).put("tags", tags).put("isPinned", note.pinned)
+            .put("isArchived", note.archived).put("isDeleted", note.deleted)
+            .put("createdAtMs", note.updatedAt).put("updatedAtMs", note.updatedAt))
+    }
+    return JSONObject().put("schemaVersion", 1).put("exportedAtMs", System.currentTimeMillis())
+        .put("notes", portable).toString(2)
+}
 
 private fun decodeBackup(raw: String): List<FolioNote> {
     val root = JSONObject(raw)
     require(root.optInt("schemaVersion", -1) == 1) { "Unsupported Folio backup version." }
     val array = root.optJSONArray("notes") ?: error("Backup has no notes.")
-    return loadNotes(array.toString())
+    return (0 until array.length()).map { index ->
+        val item = array.getJSONObject(index)
+        val tags = item.optJSONArray("tags") ?: JSONArray()
+        FolioNote(
+            id = item.getString("id"),
+            title = item.optString("title", "Untitled Note"),
+            body = item.optString("body", ""),
+            pinned = item.optBoolean("isPinned"),
+            folder = item.optString("folder", "Notes"),
+            tags = (0 until tags.length()).map { tags.optString(it) },
+            archived = item.optBoolean("isArchived"),
+            deleted = item.optBoolean("isDeleted"),
+            updatedAt = item.optLong("updatedAtMs", System.currentTimeMillis())
+        )
+    }
 }
 private fun loadNotes(raw: String): List<FolioNote> = try {
     val array = JSONArray(raw)

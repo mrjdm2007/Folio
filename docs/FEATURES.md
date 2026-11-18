@@ -10,6 +10,7 @@
 | Share one note as Markdown | Yes | Yes |
 | Export full-library JSON backup | Yes | Yes |
 | Restore/merge full-library backup | Yes | Yes |
+| Shared versioned backup schema with millisecond timestamps | Yes | Yes |
 
 ## Not implemented / not production-ready
 
@@ -26,6 +27,6 @@
 
 ## Backup and security notes
 
-Backups use versioned JSON (`schemaVersion: 1`). Restore merges by stable note ID and prefers the newest `updatedAt` record. The macOS importer also accepts legacy JSON-array backups. Android imports the versioned envelope. Date serialization is still platform-native, so this is not yet a fully normalized shared interchange codec.
+Backups use a shared versioned JSON envelope (`schemaVersion: 1`) with normalized field names and Unix-millisecond timestamps. Restore merges by stable note ID and prefers the newest `updatedAtMs` record. The macOS importer also accepts its older JSON-array backup format. Android imports the shared envelope.
 
 Backups and local note stores are plaintext. Store backups privately. Do not store passwords, financial secrets or private documents in this prototype. Safe Folder and cloud sync are not implemented. Markdown shortcuts insert syntax into plain text; they are not a full rendered editor.

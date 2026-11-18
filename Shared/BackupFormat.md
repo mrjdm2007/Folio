@@ -1,7 +1,7 @@
 # Folio portable backup format
 
-Folio full-library backups use UTF-8 JSON with `schemaVersion: 1`, an `exportedAt` timestamp, and a `notes` array. Note IDs are stable UUIDs. Restore merges by note ID and prefers the newest update timestamp when both copies exist. This is a recovery policy, not a collaborative sync conflict resolver.
+Both clients export UTF-8 JSON with `schemaVersion: 1`, `exportedAtMs` (Unix milliseconds), and a `notes` array. Each note uses stable UUID text, `title`, `body`, `folder`, `tags`, `isPinned`, `isArchived`, `isDeleted`, `createdAtMs`, and `updatedAtMs`. All timestamps are Unix milliseconds, so backup files are interchangeable between macOS and Android.
 
-The clients currently serialize note records using platform-native JSON date conventions. A future shared codec migration must normalize date encoding and field names before byte-for-byte cross-platform interchange is claimed.
+Restore merges by stable note ID and prefers the newest `updatedAtMs` when both copies exist. This is a backup recovery policy, not a collaborative sync conflict resolver. The macOS importer also accepts the older macOS JSON-array format.
 
-**Security:** backup files are plaintext. Encrypt backups before placing them in an untrusted location. Local note storage is also currently plaintext.
+**Security:** backups are plaintext. Encrypt backups before placing them in an untrusted location. Local note storage is also currently plaintext.

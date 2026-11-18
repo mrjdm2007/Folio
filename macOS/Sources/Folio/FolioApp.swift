@@ -19,10 +19,37 @@ struct FolioApp: App {
     }
 }
 
+struct PortableFolioNote: Codable {
+    var id: String
+    var title: String
+    var body: String
+    var folder: String
+    var tags: [String]
+    var isPinned: Bool
+    var isArchived: Bool
+    var isDeleted: Bool
+    var createdAtMs: Int64
+    var updatedAtMs: Int64
+
+    init(_ note: FolioNote) {
+        id = note.id.uuidString; title = note.title; body = note.body
+        folder = note.folder; tags = note.tags
+        isPinned = note.isPinned; isArchived = note.isArchived; isDeleted = note.isDeleted
+        createdAtMs = Int64(note.createdAt.timeIntervalSince1970 * 1000)
+        updatedAtMs = Int64(note.updatedAt.timeIntervalSince1970 * 1000)
+    }
+    var note: FolioNote {
+        FolioNote(id: UUID(uuidString: id) ?? UUID(), title: title, body: body,
+                  folder: folder, tags: tags, isPinned: isPinned, isArchived: isArchived,
+                  isDeleted: isDeleted,
+                  createdAt: Date(timeIntervalSince1970: Double(createdAtMs) / 1000),
+                  updatedAt: Date(timeIntervalSince1970: Double(updatedAtMs) / 1000))
+    }
+}
 struct FolioBackupEnvelope: Codable {
     var schemaVersion: Int = 1
-    var exportedAt: Date = .now
-    var notes: [FolioNote]
+    var exportedAtMs: Int64 = Int64(Date.now.timeIntervalSince1970 * 1000)
+    var notes: [PortableFolioNote]
 }
 struct FolioBackupDocument: FileDocument {
     static var readableContentTypes: [UTType] { [.json] }
@@ -44,6 +71,14 @@ struct FolioNote: Identifiable, Codable, Equatable {
     var isDeleted = false
     var createdAt: Date = .now
     var updatedAt: Date = .now
+
+    init(id: UUID = UUID(), title: String, body: String, folder: String = "Notes",
+         tags: [String] = [], isPinned: Bool = false, isArchived: Bool = false,
+         isDeleted: Bool = false, createdAt: Date = .now, updatedAt: Date = .now) {
+        self.id = id; self.title = title; self.body = body; self.folder = folder
+        self.tags = tags; self.isPinned = isPinned; self.isArchived = isArchived
+        self.isDeleted = isDeleted; self.createdAt = createdAt; self.updatedAt = updatedAt
+    }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, body, folder, tags, isPinned, isArchived, isDeleted, createdAt, updatedAt
@@ -164,14 +199,14 @@ final class NoteStore: ObservableObject {
     func makeBackup() -> FolioBackupDocument {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return FolioBackupDocument(data: (try? encoder.encode(FolioBackupEnvelope(notes: notes))) ?? Data())
+        return FolioBackupDocument(data: (try? encoder.encode(FolioBackupEnvelope(notes: notes.map(PortableFolioNote.init)))) ?? Data())
     }
     func restoreBackup(_ data: Data) throws {
         let decoder = JSONDecoder()
         let imported: [FolioNote]
         if let envelope = try? decoder.decode(FolioBackupEnvelope.self, from: data) {
             guard envelope.schemaVersion == 1 else { throw BackupError.unsupportedVersion }
-            imported = envelope.notes
+            imported = envelope.notes.map(\.note)
         } else if let legacy = try? decoder.decode([FolioNote].self, from: data) {
             imported = legacy
         } else { throw BackupError.invalidFile }
