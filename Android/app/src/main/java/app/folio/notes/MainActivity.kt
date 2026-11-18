@@ -365,6 +365,10 @@ fun FolioScreen() {
     }
     val folders = notes.asSequence().filter { !it.deleted && !it.archived }
         .map { it.folder.trim().ifBlank { "Notes" } }.filterNot { it in setOf("All Notes", "Archive", "Recently Deleted") }.distinct().sorted().toList()
+    val activeNotes = notes.filter { !it.archived && !it.deleted }
+    val dashboardOpenTasks = activeNotes.sumOf { note -> Regex("(?m)^\\s*- \\[ \\]").findAll(note.body).count() }
+    val dashboardCompletedTasks = activeNotes.sumOf { note -> Regex("(?m)^\\s*- \\[xX\\]").findAll(note.body).count() }
+    val dashboardUrgent = activeNotes.count { it.priority == "Urgent" }
     val filtered = notes.filter { note ->
         val inSection = when (section) {
             "Archive" -> note.archived && !note.deleted
@@ -417,6 +421,28 @@ fun FolioScreen() {
             OutlinedTextField(value = query, onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(), placeholder = { Text("Search titles, text and tags") },
                 leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true)
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text("LIBRARY", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(activeNotes.size.toString(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                        Text("NOTES", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text("OPEN TASKS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text((dashboardOpenTasks - dashboardCompletedTasks).coerceAtLeast(0).toString(),
+                            style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+                        Text("$dashboardCompletedTasks completed", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text("URGENT", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(dashboardUrgent.toString(), style = MaterialTheme.typography.titleLarge,
+                            color = if (dashboardUrgent > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+                        Text("PRIORITY", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
             if (showSyncPanel) Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Peer-to-peer sync", style = MaterialTheme.typography.titleMedium)
@@ -823,7 +849,7 @@ private fun appendRevision(prefs: android.content.SharedPreferences, note: Folio
     val tags = org.json.JSONArray().apply { note.tags.forEach { put(it) } }
     history.put(org.json.JSONObject().put("id", note.id).put("title", note.title).put("body", note.body)
         .put("folder", note.folder).put("tags", tags).put("isPinned", note.pinned)
-        .put("isArchived", note.archived).put("isDeleted", note.deleted)
+        .put("isArchived", note.archived).put("isDeleted", note.deleted).put("priority", note.priority)
         .put("updatedAtMs", note.updatedAt).put("createdAtMs", note.createdAt).put("savedAtMs", now))
     while (history.length() > 50) history.remove(0)
     prefs.edit().putString(key, history.toString()).apply()

@@ -60,6 +60,8 @@ struct PortableFolioNote: Codable {
     var isDeleted: Bool
     var createdAtMs: Int64
     var updatedAtMs: Int64
+    // Optional for backward compatibility with backups and peers created before priority sync.
+    var priority: String? = nil
 
     init(_ note: FolioNote) {
         id = note.id.uuidString.lowercased(); title = note.title; body = note.body
@@ -67,19 +69,21 @@ struct PortableFolioNote: Codable {
         isPinned = note.isPinned; isArchived = note.isArchived; isDeleted = note.isDeleted
         createdAtMs = Int64(note.createdAt.timeIntervalSince1970 * 1000)
         updatedAtMs = Int64(note.updatedAt.timeIntervalSince1970 * 1000)
+        priority = note.priority
     }
 
     init(id: String, title: String, body: String, folder: String, tags: [String],
          isPinned: Bool, isArchived: Bool, isDeleted: Bool,
-         createdAtMs: Int64, updatedAtMs: Int64) {
+         createdAtMs: Int64, updatedAtMs: Int64, priority: String? = nil) {
         self.id = id; self.title = title; self.body = body; self.folder = folder
         self.tags = tags; self.isPinned = isPinned; self.isArchived = isArchived
         self.isDeleted = isDeleted; self.createdAtMs = createdAtMs; self.updatedAtMs = updatedAtMs
+        self.priority = priority
     }
     var note: FolioNote {
         FolioNote(id: UUID(uuidString: id) ?? UUID(), title: title, body: body,
                   folder: folder, tags: tags, isPinned: isPinned, isArchived: isArchived,
-                  isDeleted: isDeleted,
+                  isDeleted: isDeleted, priority: priority ?? "Normal",
                   createdAt: Date(timeIntervalSince1970: Double(createdAtMs) / 1000),
                   updatedAt: Date(timeIntervalSince1970: Double(updatedAtMs) / 1000))
     }
@@ -464,7 +468,7 @@ final class NoteStore: ObservableObject {
     }
     private func peerContentEqual(_ lhs: FolioNote, _ rhs: FolioNote) -> Bool {
         lhs.title == rhs.title && lhs.body == rhs.body && lhs.folder == rhs.folder &&
-        lhs.tags == rhs.tags && lhs.isPinned == rhs.isPinned &&
+        lhs.tags == rhs.tags && lhs.isPinned == rhs.isPinned && lhs.priority == rhs.priority &&
         lhs.isArchived == rhs.isArchived && lhs.isDeleted == rhs.isDeleted
     }
 

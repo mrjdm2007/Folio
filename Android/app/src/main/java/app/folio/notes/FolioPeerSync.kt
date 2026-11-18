@@ -164,7 +164,8 @@ object FolioPeerSync {
         val fingerprint = listOf(originalId, source.optLong("updatedAt").toString(),
             source.optString("title"), source.optString("body"), source.optString("folder"),
             source.optString("tags"), source.optBoolean("pinned").toString(),
-            source.optBoolean("archived").toString(), source.optBoolean("deleted").toString()).joinToString("|")
+            source.optBoolean("archived").toString(), source.optBoolean("deleted").toString(),
+            source.optString("priority", "Normal")).joinToString("|")
         val copy = JSONObject(source.toString())
         copy.put("id", UUID.nameUUIDFromBytes(fingerprint.toByteArray(Charsets.UTF_8)).toString())
         copy.put("title", copy.optString("title") + " (Sync conflict)")
@@ -174,7 +175,7 @@ object FolioPeerSync {
     }
 
     private fun sameContent(a: JSONObject, b: JSONObject): Boolean {
-        val fields = listOf("title", "body", "folder", "tags", "pinned", "archived", "deleted")
+        val fields = listOf("title", "body", "folder", "tags", "pinned", "archived", "deleted", "priority")
         return fields.all { a.optString(it) == b.optString(it) }
     }
 

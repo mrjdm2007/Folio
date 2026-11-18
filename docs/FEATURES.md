@@ -138,3 +138,11 @@ This is a first usable direct-sync pass, not the complete release protocol. It c
 - Editors show word count and an estimated reading time at 200 words per minute.
 
 **Linking limitation:** wiki references currently resolve by note title, not a stable note identifier. Renaming a linked note can therefore require updating its references. Full graph visualisation, orphan-note detection and automatic link repair are not yet implemented.
+
+
+## Priority parity and Android library overview
+
+- The Android home screen now includes a compact library overview showing active note count, open/completed checklist items and urgent-priority notes, matching the macOS dashboard's at-a-glance information hierarchy.
+- Priority is now included in macOS portable backup and peer-sync records, while older records without that field safely default to Normal.
+- Android revision snapshots now retain priority, and Android peer conflict detection includes priority so priority-only edits are not silently treated as identical content.
+- These changes preserve existing local note data formats and are awaiting CI verification.
