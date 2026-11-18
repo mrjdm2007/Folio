@@ -41,6 +41,14 @@ struct PortableFolioNote: Codable {
         createdAtMs = Int64(note.createdAt.timeIntervalSince1970 * 1000)
         updatedAtMs = Int64(note.updatedAt.timeIntervalSince1970 * 1000)
     }
+
+    init(id: String, title: String, body: String, folder: String, tags: [String],
+         isPinned: Bool, isArchived: Bool, isDeleted: Bool,
+         createdAtMs: Int64, updatedAtMs: Int64) {
+        self.id = id; self.title = title; self.body = body; self.folder = folder
+        self.tags = tags; self.isPinned = isPinned; self.isArchived = isArchived
+        self.isDeleted = isDeleted; self.createdAtMs = createdAtMs; self.updatedAtMs = updatedAtMs
+    }
     var note: FolioNote {
         FolioNote(id: UUID(uuidString: id) ?? UUID(), title: title, body: body,
                   folder: folder, tags: tags, isPinned: isPinned, isArchived: isArchived,
