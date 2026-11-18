@@ -20,14 +20,13 @@
 
 ## Not implemented / not production-ready
 
-- Markdown preview mode on both native clients (basic rendering; advanced tables, code highlighting, math and callouts remain outstanding)
-- Image/file attachments, scanning and OCR (audio transcription intentionally excluded)
+- Scanning and OCR (audio transcription intentionally excluded)
 - PDF import, annotation and export
 - Client UI for version history and conflict-aware merge
 - Client-side account sign-in, automatic cross-device sync worker and offline outbox
 - Client-side end-to-end encryption, secure key storage and recovery
 - Safe Folder with biometric unlock and password fallback
-- Android home-screen widget (latest note and library count); macOS WidgetKit extension, share extensions, quick capture and menu-bar capture remain outstanding
+- macOS WidgetKit extension, share extensions, quick capture and menu-bar capture remain outstanding
 - Accessibility/localization audit and automated UI/integration tests
 
 ## Backup and security notes
@@ -52,7 +51,7 @@ These changes have been committed, but CI is still required to confirm compilati
 
 The Supabase migration `20261118000100_folio_encrypted_sync.sql` now defines per-user encrypted note envelopes, append-only revision history, attachment metadata, a private encrypted-attachment bucket, and row-level security policies. See [SYNC_SETUP.md](SYNC_SETUP.md).
 
-**Important:** The migration is backend groundwork only. Neither native client currently performs Supabase authentication, client-side encryption, background sync, or conflict resolution. Those features must not be marked complete until the clients are implemented and tested. Do not upload private notes to this schema using plaintext payloads.
+**Important:** The migrations are backend groundwork only. Neither native client currently performs Supabase authentication, client-side encryption, background sync, or conflict resolution. Do not upload private notes to this schema using plaintext payloads.
 
 
 ## Latest implementation pass
@@ -63,6 +62,6 @@ The Supabase migration `20261118000100_folio_encrypted_sync.sql` now defines per
 
 ## Remaining release blockers
 
-- **Cloud sync is not active yet.** The repository has Supabase encrypted storage/RLS and an atomic revision-checked write RPC, but no native sign-in, key setup/recovery, client encryption, pull/push worker, offline queue or conflict UI. The Supabase project URL and publishable key must be configured and migrations deployed before live sync can be tested. Never use a service-role key in either app.
+- **Cloud sync is not active yet.** The repository has Supabase encrypted storage/RLS and a hardened revision-checked write RPC, but no native sign-in, key setup/recovery, client encryption, pull/push worker, offline queue or conflict UI. The Supabase project URL and publishable key must be configured and migrations deployed before live sync can be tested. Never use a service-role key in either app.
 - **Document management is partial.** Android notes can attach PDF, image, text and DOCX documents through the system document picker, reopen them and remove links. Attachments remain external content URIs with persisted read permission; they are not copied into Folio, included in JSON backups, available on macOS, or synchronized. A complete cross-platform document library still needs app-managed storage, rename, backup semantics, preview/share polish and encrypted sync.
 - macOS WidgetKit needs a Widget Extension target; the current macOS package is a Swift Package executable, not an Xcode project with an extension target.
