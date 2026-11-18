@@ -668,6 +668,46 @@ struct NoteEditor: View {
             HStack {
                 TextField("Folder", text: $folder).textFieldStyle(.roundedBorder).frame(maxWidth: 180)
                 TextField("Tags, separated by commas", text: $tags).textFieldStyle(.roundedBorder)
+                Menu {
+                    ForEach(store.notes.filter { $0.id != note.id && !$0.isDeleted && !$0.isArchived }.prefix(40)) { target in
+                        Button(target.title.isEmpty ? "Untitled Note" : target.title) {
+                            let label = target.title.isEmpty ? "Untitled Note" : target.title
+                            bodyText += (bodyText.isEmpty || bodyText.hasSuffix("\n") ? "" : "\n") + "[[\(label)]]"
+                            persist()
+                        }
+                    }
+                } label: { Image(systemName: "link.badge.plus") }
+                    .help("Link another note")
+            }
+            let linkPattern = try? NSRegularExpression(pattern: #"[[([^]]+)]]"#)
+            let linkMatches = linkPattern?.matches(in: bodyText, range: NSRange(bodyText.startIndex..., in: bodyText)) ?? []
+            let linkTitles = linkMatches.compactMap { match -> String? in
+                guard let range = Range(match.range(at: 1), in: bodyText) else { return nil }
+                return String(bodyText[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            let linkedNotes = store.notes.filter { candidate in
+                linkTitles.contains(where: { $0.localizedCaseInsensitiveCompare(candidate.title) == .orderedSame })
+            }
+            let backlinks = store.notes.filter { candidate in
+                candidate.id != note.id && candidate.body.localizedCaseInsensitiveContains("[[\(title)]]")
+            }
+            if !linkedNotes.isEmpty || !backlinks.isEmpty {
+                VStack(alignment: .leading, spacing: 5) {
+                    if !linkedNotes.isEmpty {
+                        Text("LINKED NOTES").font(.caption2.weight(.semibold)).foregroundStyle(.green)
+                        HStack { ForEach(linkedNotes) { item in
+                            Button(item.title.isEmpty ? "Untitled Note" : item.title) { store.selection = item.id }
+                                .buttonStyle(.link)
+                        } }
+                    }
+                    if !backlinks.isEmpty {
+                        Text("BACKLINKS").font(.caption2.weight(.semibold)).foregroundStyle(.orange)
+                        HStack { ForEach(backlinks) { item in
+                            Button(item.title.isEmpty ? "Untitled Note" : item.title) { store.selection = item.id }
+                                .buttonStyle(.link)
+                        } }
+                    }
+                }.font(.caption)
             }
             HStack(spacing: 8) {
                 Button("H1") { bodyText += "\n# Heading\n" }

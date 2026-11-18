@@ -84,6 +84,7 @@ fun FolioScreen() {
     var editingFolder by remember { mutableStateOf("Notes") }
     var editingTags by remember { mutableStateOf("") }
     var showRenderedPreview by remember { mutableStateOf(false) }
+    var showLinkMenu by remember { mutableStateOf(false) }
     var attachedDocs by remember { mutableStateOf<List<FolioDocument>>(emptyList()) }
     var attachmentTargetId by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
@@ -538,6 +539,21 @@ fun FolioScreen() {
                             updateSelected { it.copy(tags = tags) }
                         }, modifier = Modifier.fillMaxWidth(), label = { Text("Tags (comma separated)") }, singleLine = true)
                         Spacer(Modifier.height(6.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            Box {
+                                TextButton(onClick = { showLinkMenu = true }) { Text("Link a note  ↗") }
+                                DropdownMenu(expanded = showLinkMenu, onDismissRequest = { showLinkMenu = false }) {
+                                    notes.filter { it.id != selectedId && !it.deleted && !it.archived }.take(40).forEach { target ->
+                                        DropdownMenuItem(text = { Text(target.title.ifBlank { "Untitled Note" }) }, onClick = {
+                                            val link = "[[${target.title.ifBlank { "Untitled Note" }}]]"
+                                            editingBody += (if (editingBody.isBlank() || editingBody.endsWith("\n")) "" else "\n") + link
+                                            updateSelected { it.copy(body = editingBody) }
+                                            showLinkMenu = false
+                                        })
+                                    }
+                                }
+                            }
+                        }
                         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             listOf("# " to "H1", "## " to "H2", "- " to "Bullet", "- [ ] " to "Task", "> " to "Quote",
                                 "**bold**" to "Bold", "_italic_" to "Italic", "`code`" to "Code", "[text](url)" to "Link",
@@ -580,6 +596,31 @@ fun FolioScreen() {
                             OutlinedTextField(value = editingBody, onValueChange = { value ->
                                 editingBody = value; updateSelected { it.copy(body = value) }
                             }, modifier = Modifier.weight(1f).fillMaxWidth(), placeholder = { Text("Write in Markdown…") })
+                        }
+                        val currentTitle = notes.firstOrNull { it.id == selectedId }?.title.orEmpty()
+                        val outgoingTitles = Regex("""\[\[([^\]]+)\]\]""").findAll(editingBody)
+                            .map { it.groupValues[1].trim() }.filter { it.isNotBlank() }.distinct().toList()
+                        val outgoingNotes = notes.filter { candidate -> outgoingTitles.any { it.equals(candidate.title, true) } }
+                        val incomingNotes = notes.filter { candidate ->
+                            candidate.id != selectedId && candidate.body.contains("[[$currentTitle]]", ignoreCase = true)
+                        }
+                        if (outgoingNotes.isNotEmpty() || incomingNotes.isNotEmpty()) {
+                            Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                if (outgoingNotes.isNotEmpty()) Text("LINKED NOTES", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
+                                outgoingNotes.forEach { linked ->
+                                    TextButton(onClick = {
+                                        selectedId = linked.id; editingTitle = linked.title; editingBody = linked.body
+                                        editingFolder = linked.folder; editingTags = linked.tags.joinToString(", ")
+                                    }) { Text("↗ ${linked.title}", maxLines = 1) }
+                                }
+                                if (incomingNotes.isNotEmpty()) Text("BACKLINKS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                                incomingNotes.forEach { source ->
+                                    TextButton(onClick = {
+                                        selectedId = source.id; editingTitle = source.title; editingBody = source.body
+                                        editingFolder = source.folder; editingTags = source.tags.joinToString(", ")
+                                    }) { Text("↙ ${source.title}", maxLines = 1) }
+                                }
+                            }
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text("Documents · ${attachedDocs.size}", style = MaterialTheme.typography.labelSmall)
