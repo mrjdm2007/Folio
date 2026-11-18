@@ -450,7 +450,8 @@ fun FolioScreen() {
                     }, enabled = peerAddress.isNotBlank() && pairingKey.length >= 32) { Text("Sync now") }
                     Text(syncMessage, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("Both devices must use the same key and be reachable on the same Wi-Fi or private VPN. Keep this key private.",
-                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)                    HorizontalDivider()
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Divider()
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { exportBackup.launch("Folio-Backup.json") }) { Text("Export library") }
                         OutlinedButton(onClick = { importBackup.launch(arrayOf("application/json", "text/json")) }) { Text("Restore backup") }
