@@ -106,6 +106,7 @@ object FolioPeerSync {
             val local = JSONArray(prefs.getString("notes", "[]") ?: "[]")
             val merged = merge(local, remote)
             prefs.edit().putString("notes", merged.toString()).commit()
+            FolioWidgetProvider.refresh(context)
             val response = JSONObject().put("protocol", 1).put("notes", merged)
             writeFrame(it, encrypt(response.toString(), secret))
         }
@@ -123,24 +124,35 @@ object FolioPeerSync {
                 else {
                     val oldTime = previous.optLong("updatedAt")
                     val newTime = note.optLong("updatedAt")
-                    if (newTime > oldTime) byId[id] = JSONObject(note.toString())
-                    else if (newTime == oldTime && !sameContent(note, previous)) {
-                        // Deterministic conflict identity prevents duplicate copies on retry.
-                        val conflict = JSONObject(note.toString())
-                        val fingerprint = listOf(id, note.optString("title"), note.optString("body"),
-                            note.optString("folder"), note.optString("tags"), note.optBoolean("pinned").toString()).joinToString("|")
-                        val conflictId = UUID.nameUUIDFromBytes(fingerprint.toByteArray(Charsets.UTF_8)).toString()
-                        conflict.put("id", conflictId)
-                        conflict.put("title", conflict.optString("title") + " (Sync conflict)")
-                        conflict.put("folder", "Sync Conflicts")
-                        conflict.put("pinned", false)
-                        byId[conflict.getString("id")] = conflict
-                    }
+                    if (!sameContent(note, previous)) {
+                        // Preserve the losing branch as a deterministic conflict copy; never silently discard edits.
+                        if (newTime > oldTime) {
+                            val preserved = conflictCopy(previous, id)
+                            byId[preserved.getString("id")] = preserved
+                            byId[id] = JSONObject(note.toString())
+                        } else {
+                            val preserved = conflictCopy(note, id)
+                            byId[preserved.getString("id")] = preserved
+                        }
+                    } else if (newTime > oldTime) byId[id] = JSONObject(note.toString())
                 }
             }
         }
         ingest(local); ingest(remote)
         return JSONArray().also { result -> byId.values.forEach(result::put) }
+    }
+
+    private fun conflictCopy(source: JSONObject, originalId: String): JSONObject {
+        val fingerprint = listOf(originalId, source.optLong("updatedAt").toString(),
+            source.optString("title"), source.optString("body"), source.optString("folder"),
+            source.optString("tags"), source.optBoolean("pinned").toString(),
+            source.optBoolean("archived").toString(), source.optBoolean("deleted").toString()).joinToString("|")
+        val copy = JSONObject(source.toString())
+        copy.put("id", UUID.nameUUIDFromBytes(fingerprint.toByteArray(Charsets.UTF_8)).toString())
+        copy.put("title", copy.optString("title") + " (Sync conflict)")
+        copy.put("folder", "Sync Conflicts")
+        copy.put("pinned", false)
+        return copy
     }
 
     private fun sameContent(a: JSONObject, b: JSONObject): Boolean {
