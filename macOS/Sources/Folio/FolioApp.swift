@@ -98,6 +98,37 @@ final class NoteStore: ObservableObject {
         notes[i].isPinned.toggle(); notes[i].updatedAt = .now; save()
     }
     func togglePinSelected() { if let note = selectedNote { togglePin(note) } }
+    func duplicate(_ note: FolioNote) {
+        var copy = note
+        copy.id = UUID()
+        copy.title += " (Copy)"
+        copy.isPinned = false
+        copy.isArchived = false
+        copy.isDeleted = false
+        copy.createdAt = .now
+        copy.updatedAt = .now
+        notes.insert(copy, at: 0); selection = copy.id; selectedFolder = "All Notes"; save()
+    }
+    func createTemplate(_ kind: String) {
+        let title: String
+        let content: String
+        switch kind {
+        case "Class Notes":
+            title = "Class Notes"
+            content = "# Topic\n\n**Date:** \(Date.now.formatted(date: .abbreviated, time: .omitted))\n**Course:** \n\n## Key concepts\n- \n\n## Examples\n\n## Questions\n- [ ] "
+        case "Meeting":
+            title = "Meeting Notes"
+            content = "# Meeting\n\n**Date:** \(Date.now.formatted(date: .abbreviated, time: .omitted))\n**Attendees:** \n\n## Agenda\n1. \n\n## Decisions\n- \n\n## Action items\n- [ ] Owner — Task — Due date"
+        case "Daily Journal":
+            title = "Daily Journal"
+            content = "# Daily Journal\n\n**Date:** \(Date.now.formatted(date: .abbreviated, time: .omitted))\n\n## Today\n\n## Highlights\n- \n\n## To remember\n- "
+        default:
+            title = "Project Brief"
+            content = "# Project Brief\n\n## Objective\n\n## Scope\n\n## Milestones\n- [ ] \n\n## Risks\n\n## Next steps"
+        }
+        let note = FolioNote(title: title, body: content)
+        notes.insert(note, at: 0); selection = note.id; selectedFolder = "All Notes"; save()
+    }
     func archive(_ note: FolioNote) {
         guard let i = notes.firstIndex(where: { $0.id == note.id }) else { return }
         notes[i].isArchived = true; notes[i].updatedAt = .now
@@ -135,7 +166,13 @@ struct FolioRootView: View {
                 HStack {
                     Text("FOLIO").font(.system(size: 21, weight: .bold, design: .rounded))
                     Spacer()
-                    Button { store.createNote() } label: { Image(systemName: "square.and.pencil") }.help("New note")
+                    Menu {
+                        Button("Blank Note") { store.createNote() }
+                        Divider()
+                        ForEach(["Class Notes", "Meeting", "Daily Journal", "Project Brief"], id: \.self) { kind in
+                            Button(kind) { store.createTemplate(kind) }
+                        }
+                    } label: { Image(systemName: "square.and.pencil") }.help("New note or template")
                 }.padding(.bottom, 10)
                 ForEach(sidebarItems, id: \.self) { item in
                     Button { store.selectedFolder = item } label: {
@@ -164,6 +201,7 @@ struct FolioRootView: View {
                             }.font(.caption2).foregroundStyle(.tertiary)
                         }.tag(note.id).contextMenu {
                             Button(note.isPinned ? "Unpin" : "Pin") { store.togglePin(note) }
+                            Button("Duplicate") { store.duplicate(note) }
                             if note.isDeleted {
                                 Button("Restore") { store.restore(note) }
                                 Button("Delete Permanently", role: .destructive) { store.permanentlyDelete(note) }
@@ -200,6 +238,7 @@ struct NoteEditor: View {
             HStack {
                 TextField("Title", text: $title).font(.system(size: 28, weight: .bold)).textFieldStyle(.plain)
                 Button { store.togglePin(note) } label: { Image(systemName: note.isPinned ? "pin.fill" : "pin") }.help("Pin note")
+                ShareLink(item: "# \(title)\n\n\(bodyText)") { Image(systemName: "square.and.arrow.up") }.help("Share or export as Markdown")
                 Menu {
                     Button("Archive") { store.archive(note) }
                     Button("Move to Recently Deleted", role: .destructive) { store.moveToTrash(note) }
@@ -209,6 +248,15 @@ struct NoteEditor: View {
                 TextField("Folder", text: $folder).textFieldStyle(.roundedBorder).frame(maxWidth: 180)
                 TextField("Tags, separated by commas", text: $tags).textFieldStyle(.roundedBorder)
             }
+            HStack(spacing: 8) {
+                Button("H1") { bodyText += "\n# Heading\n" }
+                Button("H2") { bodyText += "\n## Heading\n" }
+                Button("Bullet") { bodyText += "\n- List item\n" }
+                Button("Task") { bodyText += "\n- [ ] Task\n" }
+                Button("Quote") { bodyText += "\n> Quote\n" }
+                Spacer()
+                Text("Markdown").font(.caption).foregroundStyle(.secondary)
+            }.buttonStyle(.borderless)
             Divider()
             TextEditor(text: $bodyText).font(.system(size: 15)).scrollContentBackground(.hidden)
             HStack {

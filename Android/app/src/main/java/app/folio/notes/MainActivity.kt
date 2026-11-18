@@ -1,6 +1,7 @@
 package app.folio.notes
 
 import android.os.Bundle
+import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
@@ -57,6 +58,25 @@ fun FolioScreen() {
         val id = selectedId ?: return
         persist(notes.map { if (it.id == id) transform(it).copy(updatedAt = System.currentTimeMillis()) else it })
     }
+    fun duplicate(note: FolioNote) {
+        val copy = note.copy(id = UUID.randomUUID().toString(), title = note.title + " (Copy)",
+            pinned = false, archived = false, deleted = false, updatedAt = System.currentTimeMillis())
+        persist(listOf(copy) + notes); selectedId = copy.id
+        editingTitle = copy.title; editingBody = copy.body; editingFolder = copy.folder
+        editingTags = copy.tags.joinToString(", "); section = "All Notes"
+    }
+    fun createTemplate(kind: String) {
+        val date = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+        val pair = when (kind) {
+            "Class Notes" -> "Class Notes" to "# Topic\\n\\n**Date:** $date\\n**Course:** \\n\\n## Key concepts\\n- \\n\\n## Examples\\n\\n## Questions\\n- [ ] "
+            "Meeting" -> "Meeting Notes" to "# Meeting\\n\\n**Date:** $date\\n**Attendees:** \\n\\n## Agenda\\n1. \\n\\n## Decisions\\n- \\n\\n## Action items\\n- [ ] Owner — Task — Due date"
+            "Daily Journal" -> "Daily Journal" to "# Daily Journal\\n\\n**Date:** $date\\n\\n## Today\\n\\n## Highlights\\n- \\n\\n## To remember\\n- "
+            else -> "Project Brief" to "# Project Brief\\n\\n## Objective\\n\\n## Scope\\n\\n## Milestones\\n- [ ] \\n\\n## Risks\\n\\n## Next steps"
+        }
+        val note = FolioNote(UUID.randomUUID().toString(), pair.first, pair.second)
+        persist(listOf(note) + notes); selectedId = note.id
+        editingTitle = note.title; editingBody = note.body; editingFolder = "Notes"; editingTags = ""; section = "All Notes"
+    }
     val filtered = notes.filter { note ->
         val inSection = when (section) {
             "Archive" -> note.archived && !note.deleted
@@ -70,7 +90,16 @@ fun FolioScreen() {
 
     Scaffold(topBar = {
         TopAppBar(title = { Text("Folio", style = MaterialTheme.typography.headlineMedium) },
-            actions = { IconButton(onClick = { newNote() }) { Icon(Icons.Default.Add, "New note") } })
+            actions = {
+                var showTemplates by remember { mutableStateOf(false) }
+                IconButton(onClick = { showTemplates = true }) { Icon(Icons.Default.Add, "New note or template") }
+                DropdownMenu(expanded = showTemplates, onDismissRequest = { showTemplates = false }) {
+                    DropdownMenuItem(text = { Text("Blank note") }, onClick = { showTemplates = false; newNote() })
+                    listOf("Class Notes", "Meeting", "Daily Journal", "Project Brief").forEach { kind ->
+                        DropdownMenuItem(text = { Text(kind) }, onClick = { showTemplates = false; createTemplate(kind) })
+                    }
+                }
+            })
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(12.dp)) {
             OutlinedTextField(value = query, onValueChange = { query = it },
@@ -102,6 +131,7 @@ fun FolioScreen() {
                                             Icon(Icons.Default.PushPin, if (note.pinned) "Unpin" else "Pin")
                                         }
                                         if (!note.deleted && !note.archived) {
+                                            TextButton(onClick = { duplicate(note) }) { Text("Copy") }
                                             IconButton(onClick = {
                                                 persist(notes.map { if (it.id == note.id) it.copy(archived = true) else it })
                                                 if (selectedId == note.id) selectedId = null
@@ -141,9 +171,26 @@ fun FolioScreen() {
                             updateSelected { it.copy(tags = tags) }
                         }, modifier = Modifier.fillMaxWidth(), label = { Text("Tags (comma separated)") }, singleLine = true)
                         Spacer(Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            listOf("# " to "H1", "## " to "H2", "- " to "Bullet", "- [ ] " to "Task", "> " to "Quote").forEach { (prefix, label) ->
+                                TextButton(onClick = {
+                                    editingBody += (if (editingBody.isBlank() || editingBody.endsWith("\\n")) "" else "\\n") + prefix
+                                    updateSelected { it.copy(body = editingBody) }
+                                }) { Text(label, style = MaterialTheme.typography.labelSmall) }
+                            }
+                        }
                         OutlinedTextField(value = editingBody, onValueChange = { value ->
                             editingBody = value; updateSelected { it.copy(body = value) }
-                        }, modifier = Modifier.weight(1f).fillMaxWidth(), placeholder = { Text("Start writing…") })
+                        }, modifier = Modifier.weight(1f).fillMaxWidth(), placeholder = { Text("Write in Markdown…") })
+                        TextButton(onClick = {
+                            val note = notes.firstOrNull { it.id == selectedId } ?: return@TextButton
+                            val send = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/markdown"
+                                putExtra(Intent.EXTRA_SUBJECT, note.title)
+                                putExtra(Intent.EXTRA_TEXT, "# " + note.title + "\\n\\n" + note.body)
+                            }
+                            context.startActivity(Intent.createChooser(send, "Share note"))
+                        }) { Text("Share / Export Markdown") }
                     }
                 } else {
                     Box(Modifier.weight(1.1f).fillMaxHeight()) {
