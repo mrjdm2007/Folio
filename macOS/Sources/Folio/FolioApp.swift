@@ -19,6 +19,33 @@ struct FolioApp: App {
                 }
             }
         Settings { SettingsView().environmentObject(store) }
+        MenuBarExtra("Folio", systemImage: "note.text") {
+            QuickCaptureView().environmentObject(store)
+        }
+        .menuBarExtraStyle(.window)
+    }
+}
+
+struct QuickCaptureView: View {
+    @EnvironmentObject private var store: NoteStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var title = ""
+    @State private var bodyText = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Quick Capture").font(.headline)
+            TextField("Title (optional)", text: $title).textFieldStyle(.roundedBorder)
+            TextEditor(text: $bodyText).font(.system(size: 13)).frame(minHeight: 90, maxHeight: 180)
+            HStack {
+                Text("Saved locally to Inbox").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button("Save") {
+                    store.createQuickCapture(title: title, body: bodyText)
+                    title = ""; bodyText = ""; dismiss()
+                }.keyboardShortcut(.return, modifiers: .command)
+            }
+        }.padding(14).frame(width: 320)
     }
 }
 
@@ -265,6 +292,12 @@ final class NoteStore: ObservableObject {
     var selectedNote: FolioNote? { notes.first { $0.id == selection } }
     func createNote(title: String = "Untitled Note") {
         let note = FolioNote(title: title, body: "")
+        notes.insert(note, at: 0); selection = note.id; selectedFolder = "All Notes"; save()
+    }
+    func createQuickCapture(title: String, body: String) {
+        let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let note = FolioNote(title: cleanTitle.isEmpty ? "Quick Capture" : cleanTitle,
+                             body: body, folder: "Inbox")
         notes.insert(note, at: 0); selection = note.id; selectedFolder = "All Notes"; save()
     }
     func update(_ id: UUID, title: String, body: String, folder: String, tags: String) {

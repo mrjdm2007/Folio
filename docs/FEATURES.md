@@ -120,3 +120,10 @@ This is a first usable direct-sync pass, not the complete release protocol. It c
 - macOS permanent deletion now removes that note's managed attachment files and local revision history, avoiding orphaned data.
 - macOS rejects attachments larger than 100 MB and has a bounded 12-second outbound peer-sync timeout, so an unreachable peer does not leave Sync Now hanging indefinitely.
 - These are source changes; CI and real-device checks are still required. Neither attachment replication nor complete CommonMark rendering is claimed as finished.
+
+
+## Quick capture
+
+- Android home-screen widget includes a Quick capture action. It creates a local Inbox note and opens Folio.
+- macOS adds a menu-bar Quick Capture panel for saving a title and body directly into the local Inbox.
+- Both capture paths use the same local note store and do not require sync or network access.
