@@ -32,3 +32,5 @@
 .error{color:#a54d46;font-size:12px}.success{color:#50774a;font-size:12px}
 .pdf-frame{width:100%;height:70vh;border:1px solid #ddd}.doc-image{max-width:100%;max-height:55vh;display:block;margin:10px auto}.document-text{min-height:350px}
 @media(max-width:800px){.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.two-grid{grid-template-columns:1fr}.converter-grid{grid-template-columns:1fr 20px 1fr;gap:5px}.focus-panel h2{font-size:54px}}
+
+.cloud-box{border-top:1px solid #eee;margin-top:14px;padding-top:14px}.cloud-box h3{font-size:14px;margin:0 0 8px}.cloud-box input,.cloud-box textarea{width:100%;padding:10px;border:1px solid #e5e5de;border-radius:6px;background:#fff;font:inherit;font-size:12px;color:#333}.cloud-check{display:flex;align-items:center;gap:8px;font-size:11px;color:#777;margin:12px 0}.cloud-check input{width:auto}.cloud-box .inline-actions button{border:1px solid #e6e6df;background:#fafaf7;border-radius:6px;padding:8px 11px;font-size:11px;color:#555}
