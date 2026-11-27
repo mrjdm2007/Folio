@@ -20,6 +20,7 @@ jobs:
         with:
           node-version: 20
       - run: npm install
+      - run: npm audit --omit=dev || true
       - run: npm run typecheck
       - run: npm run build
       - uses: actions/upload-artifact@v4
