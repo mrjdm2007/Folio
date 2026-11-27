@@ -1,45 +1,43 @@
 name: Folio Web CI and Deploy
 on:
   push:
-    branches: [main, web-only-foundation]
+    branches: [main]
   pull_request:
   workflow_dispatch:
+
 permissions:
   contents: read
   pages: write
   id-token: write
+
 concurrency:
-  group: folio-${{ github.event_name }}-${{ github.ref }}
+  group: folio-pages
   cancel-in-progress: true
+
 jobs:
   build:
-    outputs:
-      pages_enabled: ${{ steps.pages.outcome == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - run: npm install
-      - run: npm audit --omit=dev || true
+          node-version: 22
+          cache: npm
+      - run: npm ci
       - run: npm run typecheck
       - run: npm run build
       - uses: actions/upload-artifact@v4
         with:
           name: folio-web-dist
           path: dist/
+      # Configure GitHub Pages once in repository Settings > Pages > Source > GitHub Actions.
+      # The workflow token cannot create the Pages site on behalf of the repository owner.
       - uses: actions/configure-pages@v5
-        id: pages
-        continue-on-error: true
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@v3
-        if: steps.pages.outcome == 'success'
         with:
           path: dist/
+
   deploy:
-    if: github.event_name != 'pull_request' && needs.build.outputs.pages_enabled == 'true'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
