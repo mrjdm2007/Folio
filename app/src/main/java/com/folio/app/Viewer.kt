@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -132,7 +133,9 @@ suspend fun ocr(b: Bitmap): String = suspendCoroutine { c ->
     var goto by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
-    val bmp = remember(page) { renderPage(r, page, 1400) }
+    val screenW = LocalContext.current.resources.displayMetrics.widthPixels
+    val targetW = (screenW * zoom).toInt().coerceIn(700, 3200)
+    val bmp = remember(page, targetW) { renderPage(r, page, targetW) }
     val text = s.data.texts[t.stored]
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {

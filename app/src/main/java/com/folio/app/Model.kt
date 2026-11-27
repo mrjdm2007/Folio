@@ -4,10 +4,19 @@ import android.app.Application
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Base64
+import android.webkit.MimeTypeMap
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.compose.runtime.mutableIntStateOf
+import android.media.RingtoneManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -28,14 +37,21 @@ fun <T> swap(l: List<T>, a: Int, b: Int): List<T> {
     val m = l.toMutableList(); val t = m[a]; m[a] = m[b]; m[b] = t; return m
 }
 
+/** Number shown for a numbered-list block, counting siblings at the same indent level. */
+fun numberOf(l: List<Block>, i: Int): Int {
+    var k = 1; var j = i - 1
+    while (j >= 0 && l[j].type == "number" && l[j].indent >= l[i].indent) { if (l[j].indent == l[i].indent) k++; j-- }
+    return k
+}
+
 // ---- Shared notebook format (the same JSON will be used by the Mac app and sync) ----
-@Serializable data class Block(val id: String = uid(), val type: String = "text", val text: String = "", val extra: String = "", val checked: Boolean = false)
+@Serializable data class Block(val id: String = uid(), val type: String = "text", val text: String = "", val extra: String = "", val checked: Boolean = false, val indent: Int = 0)
 @Serializable data class Snap(val time: Long, val title: String, val blocks: List<Block>)
 @Serializable data class Node(
     val id: String = uid(), val parentId: String? = null, val kind: String, val title: String,
     val tags: List<String> = emptyList(), val blocks: List<Block> = emptyList(),
     val deleted: Boolean = false, val bookmarked: Boolean = false, val folder: String = "",
-    val updated: Long = now(), val history: List<Snap> = emptyList()
+    val updated: Long = now(), val history: List<Snap> = emptyList(), val readPos: Int = 0
 )
 @Serializable data class Flash(val id: String = uid(), val deck: String, val front: String, val back: String,
     val due: Long = 0, val interval: Int = 0, val ease: Double = 2.5, val reps: Int = 0, val last: Long = 0)
@@ -52,7 +68,8 @@ fun <T> swap(l: List<T>, a: Int, b: Int): List<T> {
     val questions: List<Question> = emptyList(), val exams: List<Exam> = emptyList(),
     val sessions: List<Session> = emptyList(), val formulas: List<Formula> = emptyList(),
     val graphs: List<String> = emptyList(), val dailyGoal: Int = 120,
-    val texts: Map<String, String> = emptyMap()   // extracted PDF text, keyed by stored attachment name
+    val texts: Map<String, String> = emptyMap(),   // extracted PDF text, keyed by stored attachment name
+    val userName: String = "", val nameAsked: Boolean = false
 )
 @Serializable data class BackupFile(val data: Data, val files: Map<String, String> = emptyMap())
 
@@ -61,12 +78,21 @@ class Store(app: Application) : AndroidViewModel(app) {
     private val file = File(app.filesDir, "folio.json")
     var data by mutableStateOf(Data()); private set
 
-    init { runCatching { if (file.exists()) data = json.decodeFromString<Data>(file.readText()) } }
-
-    fun update(f: (Data) -> Data) { data = f(data); save() }
-    private fun save() {   // atomic write: a crash can never leave a half-written notebook
+    init {
+        if (file.exists()) runCatching { data = json.decodeFromString<Data>(file.readText()) }.onFailure {
+            // never overwrite a notebook we could not read: keep a copy first
+            runCatching { file.copyTo(File(file.path + ".corrupt-" + now()), overwrite = true) }
+        }
+    }
+    private var saveJob: Job? = null
+    fun update(f: (Data) -> Data) { data = f(data); scheduleSave() }
+    private fun scheduleSave() { saveJob?.cancel(); saveJob = viewModelScope.launch { delay(400); withContext(Dispatchers.IO) { writeNow() } } }
+    @Synchronized private fun writeNow() {   // atomic write: a crash can never leave a half-written notebook
         val tmp = File(file.path + ".tmp"); tmp.writeText(json.encodeToString(data)); tmp.renameTo(file)
     }
+    /** Called when the app goes to the background so nothing is left waiting to be saved. */
+    fun flush() { saveJob?.cancel(); writeNow() }
+    override fun onCleared() { flush() }
 
     // ---- tree ----
     fun node(id: String) = data.nodes.firstOrNull { it.id == id }
@@ -76,9 +102,9 @@ class Store(app: Application) : AndroidViewModel(app) {
         while (n != null) { out.add(0, n.title); n = n.parentId?.let { node(it) } }
         return out.joinToString(" › ")
     }
-    fun recent(n: Int) = data.nodes.filter { it.kind == "page" && !it.deleted }.sortedByDescending { it.updated }.take(n)
+    fun recent(n: Int) = data.nodes.filter { (it.kind == "page" || it.kind == "topic") && !it.deleted && it.blocks.any { b -> b.text.isNotBlank() || b.type == "image" } }.sortedByDescending { it.updated }.take(n)
     fun search(q: String) = data.nodes.filter { n ->
-        n.kind == "page" && !n.deleted && (
+        (n.kind == "page" || n.kind == "topic") && !n.deleted && (
             if (q.startsWith("#")) n.tags.any { it.contains(q.drop(1), true) }
             else n.title.contains(q, true) || n.tags.any { it.contains(q, true) } ||
                 n.blocks.any { it.text.contains(q, true) || it.extra.contains(q, true) } ||
@@ -86,19 +112,12 @@ class Store(app: Application) : AndroidViewModel(app) {
     }
     fun editNode(id: String, f: (Node) -> Node) = update { d -> d.copy(nodes = d.nodes.map { if (it.id == id) f(it).copy(updated = now()) else it }) }
     fun editBlocks(id: String, f: (List<Block>) -> List<Block>) = editNode(id) { it.copy(blocks = f(it.blocks)) }
-    fun add(parent: String?, kind: String, title: String) = update { d ->
-        d.copy(nodes = d.nodes + Node(parentId = parent, kind = kind, title = title.ifBlank { "Untitled" },
-            blocks = if (kind == "page") listOf(Block()) else emptyList()))
-    }
-    fun quickNote(): String {
-        var cid = data.nodes.firstOrNull { it.kind == "course" && it.title == "Quick Notes" && !it.deleted }?.id
-        val pid = uid()
-        update { d ->
-            var nodes = d.nodes
-            if (cid == null) { cid = uid(); nodes = nodes + Node(id = cid!!, kind = "course", title = "Quick Notes") }
-            d.copy(nodes = nodes + Node(id = pid, parentId = cid, kind = "page", title = "Quick note " + fmt(now()), blocks = listOf(Block())))
-        }
-        return pid
+    /** Creates a node and returns its id. Topics (and legacy pages) start with one empty text block, ready to type in. */
+    fun add(parent: String?, kind: String, title: String): String {
+        val n = Node(parentId = parent, kind = kind, title = title.ifBlank { "Untitled" },
+            blocks = if (kind == "page" || kind == "topic") listOf(Block()) else emptyList())
+        update { d -> d.copy(nodes = d.nodes + n) }
+        return n.id
     }
     private fun descendants(id: String): Set<String> {
         val out = mutableSetOf(id); var changed = true
@@ -135,16 +154,70 @@ class Store(app: Application) : AndroidViewModel(app) {
     }
     fun mergeNext(id: String) = update { d ->
         val n = d.nodes.first { it.id == id }
-        val sib = d.nodes.filter { it.parentId == n.parentId && !it.deleted && it.kind == "page" }
+        val sib = d.nodes.filter { it.parentId == n.parentId && !it.deleted && (it.kind == "page" || it.kind == "topic") }
         val nx = sib.getOrNull(sib.indexOfFirst { it.id == id } + 1)
         if (nx == null) d else d.copy(nodes = d.nodes.map {
             when (it.id) { id -> it.copy(blocks = it.blocks + nx.blocks, updated = now()); nx.id -> it.copy(deleted = true); else -> it }
         })
     }
 
+    fun allTags(): List<String> = data.nodes.filter { !it.deleted }.flatMap { it.tags }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key }
+    fun setReadPos(id: String, pos: Int) = update { d -> d.copy(nodes = d.nodes.map { if (it.id == id) it.copy(readPos = pos) else it }) }
+
+    fun insertBlocks(pid: String, afterId: String?, new: List<Block>) = editBlocks(pid) { l ->
+        val i = l.indexOfFirst { it.id == afterId }
+        if (i < 0) l + new else l.take(i + 1) + new + l.drop(i + 1)
+    }
+    /** Replaces one block by [newText] followed by [extra] blocks (used to drop an image/PDF into the middle of a paragraph). */
+    fun replaceBlock(pid: String, blockId: String, newText: String, extra: List<Block>) = editBlocks(pid) { l ->
+        l.flatMap { b -> if (b.id != blockId) listOf(b) else (if (newText.isBlank() && b.type == "text") emptyList() else listOf(b.copy(text = newText))) + extra }
+    }
+    fun setName(n: String) = update { d -> d.copy(userName = n.trim(), nameAsked = true) }
+    fun markNameAsked() = update { d -> if (d.nameAsked) d else d.copy(nameAsked = true) }
+
+    // ---- files opened from other apps (WhatsApp, Files, Gmail...) ----
+    var incoming by mutableStateOf<ViewTarget?>(null)
+    fun openIncoming(uri: Uri) {
+        viewModelScope.launch {
+            val r = withContext(Dispatchers.IO) { attach(uri, cache = true) }
+            incoming = if (r != null) ViewTarget(r.first, r.second, true) else ViewTarget("missing", "Unreadable file", true)
+        }
+    }
+
+    // ---- focus timer (kept here so it keeps running when you switch screens) ----
+    var timerMinutes by mutableIntStateOf(25); private set
+    var timerLeft by mutableIntStateOf(25 * 60); private set
+    var timerRunning by mutableStateOf(false); private set
+    var timerSubject by mutableStateOf("")
+    private var timerEnd = 0L
+    private var timerJob: Job? = null
+    fun setTimerMinutes(m: Int) { if (!timerRunning) { timerMinutes = m; timerLeft = m * 60 } }
+    fun timerToggle() {
+        if (timerRunning) { timerJob?.cancel(); timerRunning = false; return }
+        timerEnd = now() + timerLeft * 1000L; timerRunning = true
+        timerJob = viewModelScope.launch {
+            while (timerRunning) {
+                timerLeft = maxOf(0, ((timerEnd - now() + 999) / 1000).toInt())
+                if (timerLeft <= 0) break
+                delay(250)
+            }
+            if (timerLeft <= 0 && timerRunning) finishTimer()
+        }
+    }
+    fun timerReset() { timerJob?.cancel(); timerRunning = false; timerLeft = timerMinutes * 60 }
+    private fun finishTimer() {
+        timerRunning = false
+        update { d -> d.copy(sessions = d.sessions + Session(now(), timerSubject, timerMinutes)) }
+        runCatching { RingtoneManager.getRingtone(getApplication<Application>(), RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)).play() }
+        timerLeft = timerMinutes * 60
+    }
+
     // ---- flashcards (simple SM-2 style scheduling) ----
-    fun addCard(deck: String, front: String, back: String) =
-        update { d -> d.copy(cards = d.cards + Flash(deck = deck.ifBlank { "Default" }, front = front, back = back)) }
+    fun addCard(deck: String, front: String, back: String) = update { d ->
+        val dk = deck.ifBlank { "Default" }
+        if (front.isBlank() || d.cards.any { it.deck == dk && it.front == front }) d
+        else d.copy(cards = d.cards + Flash(deck = dk, front = front, back = back))
+    }
     fun renameDeck(old: String, new: String) =
         update { d -> d.copy(cards = d.cards.map { if (it.deck == old) it.copy(deck = new.ifBlank { old }) else it }) }
     fun rate(id: String, r: Int) = update { d ->
@@ -170,7 +243,11 @@ class Store(app: Application) : AndroidViewModel(app) {
         cr.query(uri, null, null, null, null)?.use { c ->
             if (c.moveToFirst()) { val i = c.getColumnIndex(OpenableColumns.DISPLAY_NAME); if (i >= 0) name = c.getString(i) ?: name }
         }
-        val ext = name.substringAfterLast('.', "").lowercase()
+        var ext = name.substringAfterLast('.', "").lowercase()
+        if (ext.isEmpty()) {   // some apps (e.g. WhatsApp) give no extension: use the MIME type instead
+            ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(cr.getType(uri)) ?: ""
+            if (ext.isNotEmpty()) name += ".$ext"
+        }
         val stored = uid() + (if (ext.isNotEmpty()) ".$ext" else "")
         cr.openInputStream(uri)!!.use { i -> attachmentFile(stored, cache).outputStream().use { o -> i.copyTo(o) } }
         stored to name
@@ -195,7 +272,7 @@ class Store(app: Application) : AndroidViewModel(app) {
     fun integrity(): List<String> {
         val r = mutableListOf<String>(); val ids = data.nodes.map { it.id }.toSet()
         data.nodes.filter { n -> n.parentId?.let { it !in ids } == true }.forEach { r += "Orphaned item: ${it.title}" }
-        data.nodes.filter { it.kind == "page" && !it.deleted }.groupBy { it.blocks.joinToString("|") { b -> b.text } }
+        data.nodes.filter { (it.kind == "page" || it.kind == "topic") && !it.deleted }.groupBy { it.blocks.joinToString("|") { b -> b.text } }
             .filter { it.value.size > 1 && it.key.isNotBlank() }.forEach { r += "Duplicate content: " + it.value.joinToString { n -> n.title } }
         data.nodes.filter { !it.deleted }.forEach { n ->
             n.blocks.filter { it.type == "image" || it.type == "file" }.forEach { b ->

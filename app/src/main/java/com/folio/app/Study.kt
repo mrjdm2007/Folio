@@ -85,7 +85,7 @@ fun streak(d: Data): Int {
         }
         val c = due.firstOrNull()
         if (c == null) Text("Nothing due right now 🎉")
-        else Surface(color = Panel, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+        else GlassCard(Modifier.fillMaxWidth(), RoundedCornerShape(12.dp)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("${due.size} due · ${c.deck}", color = Gold)
                 Text(c.front, fontSize = 20.sp)
@@ -196,7 +196,7 @@ fun streak(d: Data): Int {
         s.data.exams.sortedBy { it.date }.forEach { e ->
             val left = e.date - LocalDate.now().toEpochDay()
             val pct = if (e.tasks.isEmpty()) 0f else e.tasks.count { it.done } / e.tasks.size.toFloat()
-            Surface(color = Panel, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+            GlassCard(Modifier.fillMaxWidth(), RoundedCornerShape(12.dp)) {
                 Column(Modifier.padding(12.dp)) {
                     Row {
                         Text("${e.title} · ${e.subject}", Modifier.weight(1f).clickable { open = if (open == e.id) null else e.id })
@@ -225,30 +225,17 @@ fun streak(d: Data): Int {
 }
 
 @Composable fun Focus(s: Store) {
-    val ctx = LocalContext.current
-    var minutes by remember { mutableIntStateOf(25) }
-    var left by remember { mutableIntStateOf(25 * 60) }
-    var running by remember { mutableStateOf(false) }
-    var subject by remember { mutableStateOf("") }
-    LaunchedEffect(running) {
-        while (running && left > 0) { delay(1000); left-- }
-        if (running && left <= 0) {
-            running = false
-            s.update { d -> d.copy(sessions = d.sessions + Session(now(), subject, minutes)) }
-            runCatching { RingtoneManager.getRingtone(ctx, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)).play() }
-            left = minutes * 60
-        }
-    }
     Column(Modifier.verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(subject, { subject = it }, label = { Text("Subject / topic") }, modifier = Modifier.fillMaxWidth())
-        Row { listOf(15, 25, 45, 60, 90).forEach { m -> Chip("$m", minutes == m) { if (!running) { minutes = m; left = m * 60 } } } }
-        Text("%02d:%02d".format(left / 60, left % 60), fontSize = 64.sp, color = Gold)
+        OutlinedTextField(s.timerSubject, { s.timerSubject = it }, label = { Text("Subject / topic") },
+            shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
+        Row { listOf(15, 25, 45, 60, 90).forEach { m -> Chip("$m", s.timerMinutes == m) { s.setTimerMinutes(m) } } }
+        Text(java.lang.String.format(java.util.Locale.US, "%02d:%02d", s.timerLeft / 60, s.timerLeft % 60), fontSize = 64.sp, color = Gold)
         Row {
-            Button({ running = !running }) { Text(if (running) "Pause" else if (left < minutes * 60) "Resume" else "Start") }
+            Button({ s.timerToggle() }) { Text(if (s.timerRunning) "Pause" else if (s.timerLeft < s.timerMinutes * 60) "Resume" else "Start") }
             Spacer(Modifier.width(8.dp))
-            OutlinedButton({ running = false; left = minutes * 60 }) { Text("Reset") }
+            OutlinedButton({ s.timerReset() }) { Text("Reset") }
         }
-        Text("Keep the app open while the timer runs. Sessions are logged when they finish.", fontSize = 12.sp)
+        Text("A small timer floats on every screen while a session is running. Drag it anywhere. It stops if the app is closed.", fontSize = 12.sp)
         SectionTitle("Session history")
         s.data.sessions.takeLast(10).reversed().forEach { Text("${it.subject.ifBlank { "Study" }} · ${it.minutes} min · ${fmt(it.time)}", fontSize = 13.sp) }
     }

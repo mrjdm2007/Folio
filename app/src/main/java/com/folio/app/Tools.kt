@@ -38,6 +38,13 @@ val UNITS: Map<String, List<Pair<String, Double>>> = mapOf(
     "Speed" to listOf("m/s" to 1.0, "km/h" to 0.277778, "mph" to 0.44704)
 )
 
+fun fmtNum(x: Double): String {
+    if (x == 0.0 || x.isNaN() || x.isInfinite()) return x.toString()
+    val a = abs(x)
+    return if (a >= 1e-4 && a < 1e9) java.math.BigDecimal(x).round(java.math.MathContext(8)).stripTrailingZeros().toPlainString()
+    else String.format(java.util.Locale.US, "%.5e", x)
+}
+
 fun convert(cat: String, from: Int, to: Int, v: Double): Double {
     val us = UNITS[cat]!!
     if (cat == "Temperature") {
@@ -62,7 +69,7 @@ fun convert(cat: String, from: Int, to: Int, v: Double): Double {
         Row(Modifier.horizontalScroll(rememberScrollState())) { us.forEachIndexed { i, u -> Chip(u.first, from == i) { from = i } } }
         SectionTitle("To")
         Row(Modifier.horizontalScroll(rememberScrollState())) { us.forEachIndexed { i, u -> Chip(u.first, to == i) { to = i } } }
-        if (v != null) Text("%.6g %s".format(convert(cat, from, to, v), us[to].first), fontSize = 28.sp, color = Gold)
+        if (v != null) Text("${fmtNum(convert(cat, from, to, v))} ${us[to].first}", fontSize = 28.sp, color = Gold)
     }
 }
 
@@ -163,7 +170,7 @@ fun evalExpr(src: String, x: Double) = Parser(src.lowercase().replace(" ", ""), 
         Button({ if (src.isNotBlank()) { s.update { d -> d.copy(formulas = d.formulas + Formula(name = name.ifBlank { "Formula" }, latex = src)) }; name = ""; src = "" } }) { Text("Save to library") }
         OutlinedTextField(q, { q = it }, label = { Text("Search formulas") }, modifier = Modifier.fillMaxWidth())
         s.data.formulas.filter { q.isBlank() || it.name.contains(q, true) || it.latex.contains(q, true) }.forEach { f ->
-            Surface(color = Panel, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+            GlassCard(Modifier.fillMaxWidth(), RoundedCornerShape(10.dp)) {
                 Row(Modifier.padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f).padding(vertical = 8.dp)) { Text(f.name); Text(f.latex, fontFamily = FontFamily.Monospace, color = Gold, fontSize = 13.sp) }
                     Chip("✕") { s.update { d -> d.copy(formulas = d.formulas.filter { it.id != f.id }) } }
@@ -205,7 +212,7 @@ fun evalExpr(src: String, x: Double) = Parser(src.lowercase().replace(" ", ""), 
 }
 
 @Composable fun TrashView(s: Store) {
-    val del = s.data.nodes.filter { it.deleted }
+    val del = s.data.nodes.filter { n -> n.deleted && n.parentId?.let { p -> s.node(p)?.deleted == true } != true }   // only the top of each deleted branch
     Column(Modifier.verticalScroll(rememberScrollState())) {
         if (del.isEmpty()) Text("Trash is empty.")
         del.forEach { n ->

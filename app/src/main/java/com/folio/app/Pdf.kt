@@ -28,18 +28,17 @@ fun exportPagePdf(s: Store, n: Node, out: OutputStream) {
         y += lay.height + 8
     }
     text(n.title, 24f, Typeface.BOLD)
-    var num = 0
-    n.blocks.forEach { b ->
-        if (b.type == "number") num++ else num = 0
+    n.blocks.forEachIndexed { bi, b ->
         when (b.type) {
             "h1" -> text(b.text, 20f, Typeface.BOLD)
             "h2" -> text(b.text, 16f, Typeface.BOLD)
-            "bullet" -> text("• " + b.text, 12f, indent = 12)
-            "number" -> text("$num. " + b.text, 12f, indent = 12)
-            "check" -> text((if (b.checked) "[x] " else "[ ] ") + b.text, 12f, indent = 12)
+            "bullet" -> text("• " + b.text, 12f, indent = 12 + b.indent * 16)
+            "number" -> text("${numberOf(n.blocks, bi)}. " + b.text, 12f, indent = 12 + b.indent * 16)
+            "check" -> text((if (b.checked) "[x] " else "[ ] ") + b.text, 12f, indent = 12 + b.indent * 16)
             "quote" -> text(b.text, 12f, Typeface.ITALIC, indent = 20)
             "code" -> text(b.text, 10f, mono = true, indent = 8)
             "latex" -> text("$$ " + b.text + " $$", 11f, mono = true, indent = 8)
+            "table" -> text(b.text.replace("|", "  |  "), 11f, mono = true, indent = 8)
             "flash" -> text("Q: ${b.text}\nA: ${b.extra}", 12f, Typeface.BOLD)
             "file" -> text("[Attachment] ${b.extra}", 11f, Typeface.ITALIC)
             "image" -> loadBitmap(s.attachmentFile(b.text), 1000)?.let { bmp ->
