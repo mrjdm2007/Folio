@@ -9,7 +9,7 @@ permissions:
   pages: write
   id-token: write
 concurrency:
-  group: folio-pages
+  group: folio-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   build:
