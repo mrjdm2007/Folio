@@ -228,7 +228,7 @@ fun streak(d: Data): Int {
     Column(Modifier.verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(s.timerSubject, { s.timerSubject = it }, label = { Text("Subject / topic") },
             shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
-        Row { listOf(15, 25, 45, 60, 90).forEach { m -> Chip("$m", s.timerMinutes == m) { s.setTimerMinutes(m) } } }
+        Row { listOf(15, 25, 45, 60, 90).forEach { m -> Chip("$m", s.timerMinutes == m) { s.updateTimerMinutes(m) } } }
         Text(java.lang.String.format(java.util.Locale.US, "%02d:%02d", s.timerLeft / 60, s.timerLeft % 60), fontSize = 64.sp, color = Gold)
         Row {
             Button({ s.timerToggle() }) { Text(if (s.timerRunning) "Pause" else if (s.timerLeft < s.timerMinutes * 60) "Resume" else "Start") }
