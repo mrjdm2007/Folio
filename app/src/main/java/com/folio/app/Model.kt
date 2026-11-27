@@ -26,6 +26,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import kotlin.jvm.JvmName
 
 fun uid() = UUID.randomUUID().toString()
 fun now() = System.currentTimeMillis()
@@ -185,6 +186,7 @@ class Store(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- focus timer (kept here so it keeps running when you switch screens) ----
+    @set:JvmName("setTimerMinutesState")
     var timerMinutes by mutableIntStateOf(25); private set
     var timerLeft by mutableIntStateOf(25 * 60); private set
     var timerRunning by mutableStateOf(false); private set
