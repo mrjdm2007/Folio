@@ -1,23 +1,55 @@
 # Folio Web
 
-Folio is moving to a **web-only Progressive Web App**. The browser/PWA is the sole maintained client; Android and macOS app builds are discontinued.
+Folio is a **web-only Progressive Web App**. The maintained product is the browser app; the Android and macOS application targets have been retired.
 
-## Development
+## What is included
 
-- Node.js 20+
-- `npm install`
-- `npm run dev`
-- `npm run typecheck`
-- `npm run build`
+- **Notes:** rich-text editing, headings, bold/italic/underline, links, images, pasted images, tables, checklists, code blocks, quotes, lists, tags, bookmarks, folders, duplicate, trash, search, print/PDF.
+- **Automatic saving:** IndexedDB local persistence; no Save button required.
+- **Migration and backup:** import the Android Folio JSON backup envelope, including its attachment map; export the complete local library and attachments to one JSON backup.
+- **Study:** spaced-repetition flashcards, AI flashcard generation through a user-supplied Gemini API key, multiple-choice question bank and practice, exam calendar/checklists, focus timer, daily goal and study history.
+- **Engineering tools:** SI and electronics unit conversion (V, A, Ω, F, H, power, frequency, etc.), graph plotting, saved graphs and a LaTeX formula library with KaTeX preview.
+- **Documents:** browser PDF preview and text extraction, OCR for scanned PDF pages and images, DOCX/PPTX/XLSX text extraction, and TXT/Markdown/CSV/JSON reading. Extracted text can be saved as a note.
+- **PWA:** responsive phone/desktop layout, installable manifest, service worker and app-shell offline fallback.
+- **Cloud sync:** optional Firebase email/password sign-in, Firestore note/data sync and Firebase Storage attachment sync. You bring your own Firebase project configuration.
 
-## Web foundation
+## Local development
 
-Responsive workspace; TipTap rich-text editor; headings, lists, quotes, code, links and inline images; notes, folders, tags, bookmarks, search and trash; IndexedDB autosave; import/export of the existing Folio JSON data envelope; PWA manifest and service-worker app-shell caching; flashcards and a focus timer.
+Requires Node.js 20 or newer.
 
-## Migration status
+```sh
+npm install
+npm run dev
+npm run typecheck
+npm run build
+npm run preview
+```
 
-The existing Android data model includes notes/topics, folders, blocks, tags, bookmarks, trash, flashcards, questions, exams, study sessions, formulas, saved graphs and extracted PDF text. Import preserves unknown/shared data fields, even where a web screen is not yet implemented. Existing backup attachment payloads are not yet unpacked into the browser attachment store. Browser data is device/browser-local; authenticated cloud sync is a separate unfinished milestone. Export backups regularly.
+## Android Folio migration
+
+In Settings → Import Folio backup, select the JSON backup created by the Android app. The web importer retains the shared data fields (notes, folders, tags, bookmarks, flashcards, questions, exams, study sessions, formulas, saved graphs and extracted document text) and restores attachment bytes into browser storage. After import, immediately export a fresh Folio Web backup as a safety copy.
+
+The app stores its working library in the current browser profile. Clearing browser site data clears that local copy, so export backups regularly. Use Firebase sync below to keep a remote copy and move data between devices.
+
+## Firebase cloud sync setup
+
+1. Create a Firebase project and register a Web App.
+2. Enable **Authentication → Email/Password**.
+3. Create a **Cloud Firestore** database and a **Cloud Storage** bucket.
+4. Deploy the rules in `firebase/firestore.rules` and `firebase/storage.rules`.
+5. In Folio → Settings & backup, paste the Firebase Web App config JSON, then create an account or sign in and choose **Upload this library**.
+6. On another device, enter the same Firebase config and account details and choose **Restore from cloud**.
+
+The Firebase Web config is a public client identifier, not an admin credential. The included rules restrict each account to its own user path. Do not place service-account private keys in the browser. Firestore and Storage usage is subject to your Firebase plan and quotas. Large embedded images in rich-text HTML can exceed Firestore's document-size limit; keep very large images as attachments and maintain JSON backups.
+
+## AI flashcards and notifications
+
+AI flashcard generation requires a Gemini API key from Google AI Studio. The key is stored in this browser's local storage and sent directly to Google's Gemini API; use an appropriately restricted key and do not share it. Hourly topic reminders use the browser Notification API and run only while Folio remains open; they are not guaranteed when the browser or device is closed.
 
 ## Deployment
 
-GitHub Actions type-checks and builds the static site into `dist/` on pushes and pull requests. Configure a static host to publish that artifact.
+GitHub Actions runs TypeScript checks and a production Vite build, uploads a `folio-web-dist` artifact, and deploys the PWA to GitHub Pages when Pages is enabled for the repository. The expected project URL is:
+
+`https://mrjdm2007.github.io/Folio/`
+
+If the Pages deployment reports that Pages is not enabled, open Repository Settings → Pages and select **GitHub Actions** as the build and deployment source, then re-run the workflow.
