@@ -24,7 +24,8 @@
     "xlsx": "^0.18.5",
     "jszip": "^3.10.1",
     "tesseract.js": "^6.0.1",
-    "@tiptap/extension-underline": "^2.11.5"
+    "@tiptap/extension-underline": "^2.11.5",
+    "firebase": "^11.1.0"
   },
   "devDependencies": {
     "@types/katex": "^0.16.7",
