@@ -26,7 +26,7 @@
     "@tiptap/extension-task-list": "^3.35.0",
     "@tiptap/extension-task-item": "^3.35.0",
     "@tiptap/extension-table": "^3.35.0",
-    "pdfjs-dist": "^5.4.394",
+    "pdfjs-dist": "^6.2.108",
     "read-excel-file": "^9.3.20",
     "vite": "^6.4.1",
     "@vitejs/plugin-react": "^4.7.0"
