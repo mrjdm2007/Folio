@@ -13,7 +13,7 @@ self.addEventListener("fetch", event => {
         const cache = await caches.open("folio-shared-files");
         await cache.put(new URL(BASE + "shared-file", self.location.origin).toString(), new Response(file, { headers: { "Content-Type": file.type || "application/octet-stream", "X-Filename": file.name || "shared-file" } }));
       }
-      return Response.redirect(BASE + "?shared=1", 303);
+      return Response.redirect(new URL(BASE + "?shared=1", self.location.origin).toString(), 303);
     })());
     return;
   }
