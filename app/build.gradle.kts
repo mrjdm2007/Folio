@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.net.URL
 
 plugins {
     id("com.android.application")
@@ -62,7 +63,7 @@ tasks.register("downloadKatex") {
             val out = File(katexDir, f)
             if (!out.exists()) {
                 out.parentFile.mkdirs()
-                try { java.net.URL(base + f).openStream().use { i -> out.outputStream().use { o -> i.copyTo(o) } } }
+                try { URL(base + f).openStream().use { i -> out.outputStream().use { o -> i.copyTo(o) } } }
                 catch (e: Exception) { println("KaTeX download skipped for $f: ${e.message}") }
             }
         }
