@@ -2,7 +2,7 @@ const CACHE = "folio-shell-v2";
 const BASE = new URL(self.registration.scope).pathname;
 const SHELL = [BASE, BASE + "manifest.webmanifest", BASE + "icon.svg"];
 self.addEventListener("install", event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting())));
-self.addEventListener("activate", event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())));
+self.addEventListener("activate", event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith("folio-shell-") && key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())));
 self.addEventListener("fetch", event => {
   const requestUrl = new URL(event.request.url);
   if (event.request.method === "POST" && requestUrl.pathname === BASE + "share-target/") {
