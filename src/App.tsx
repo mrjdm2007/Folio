@@ -12,10 +12,7 @@ import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
-import TableExtension from "@tiptap/extension-table";
-import TableRow from "@tiptap/extension-table-row";
-import TableCell from "@tiptap/extension-table-cell";
-import TableHeader from "@tiptap/extension-table-header";
+import {Table as TableExtension,TableRow,TableCell,TableHeader} from "@tiptap/extension-table";
 import { BookOpen, Bookmark, ChevronDown, ChevronRight, CircleHelp, Clock3, FilePlus2, FileText, Folder, FolderPlus, GraduationCap, ImagePlus, Import, Layers3, MoreHorizontal, PanelLeftClose, Plus, Search, Settings2, Sparkles, Star, Tag, Trash2, Upload, Download, X, Check, Bold, Italic, List, ListOrdered, Heading1, Heading2, ListChecks, Quote, Code, Undo2, Redo2, Menu, Link as LinkIcon, Table as TableIcon, Underline as UnderlineIcon } from "lucide-react";
 
 type Block = { id: string; type: string; text: string; extra?: string; checked?: boolean; indent?: number };
