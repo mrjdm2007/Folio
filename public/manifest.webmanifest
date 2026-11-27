@@ -1,10 +1,14 @@
 {
   "name": "Folio — Notes & Learning",
   "short_name": "Folio",
-  "description": "A calm, powerful workspace for notes and learning.",
-  "start_url": "/",
+  "description": "A calm workspace for notes, learning and engineering tools.",
+  "start_url": "/Folio/",
+  "scope": "/Folio/",
   "display": "standalone",
   "background_color": "#f7f7f5",
   "theme_color": "#f7f7f5",
-  "icons": []
+  "orientation": "any",
+  "icons": [
+    {"src": "/Folio/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}
+  ]
 }
