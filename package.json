@@ -15,7 +15,7 @@
     "@tiptap/react": "^3.35.0",
     "@tiptap/starter-kit": "^3.35.0",
     "dexie": "^4.0.11",
-    "katex": "^0.16.22",
+    "katex": "^0.18.2",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -38,5 +38,8 @@
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "~5.6.2",
     "vite": "^6.0.7"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.7"
   }
 }
