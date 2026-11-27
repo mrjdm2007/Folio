@@ -1,0 +1,10 @@
+{
+  "name": "Folio — Notes & Learning",
+  "short_name": "Folio",
+  "description": "A calm, powerful workspace for notes and learning.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f7f5",
+  "theme_color": "#f7f7f5",
+  "icons": []
+}
