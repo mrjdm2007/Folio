@@ -9,7 +9,7 @@ Folio is a **web-only Progressive Web App**. The maintained product is the brows
 - **Migration and backup:** import the Android Folio JSON backup envelope, including its attachment map; export the complete local library and attachments to one JSON backup.
 - **Study:** spaced-repetition flashcards, AI flashcard generation through a user-supplied Gemini API key, multiple-choice question bank and practice, exam calendar/checklists, focus timer, daily goal and study history.
 - **Engineering tools:** SI and electronics unit conversion (V, A, Ω, F, H, power, frequency, etc.), graph plotting, saved graphs and a LaTeX formula library with KaTeX preview.
-- **Documents:** browser PDF preview and text extraction, OCR for scanned PDF pages and images, DOCX/PPTX/XLSX text extraction, and TXT/Markdown/CSV/JSON reading. Extracted text can be saved as a note.
+- **Documents:** receive supported files from the Android share sheet when Folio is installed; browser PDF preview and text extraction, OCR for scanned PDF pages and images, DOCX/PPTX/XLSX text extraction, and TXT/Markdown/CSV/JSON reading. Extracted text can be saved as a note.
 - **PWA:** responsive phone/desktop layout, installable manifest, service worker and app-shell offline fallback.
 - **Cloud sync:** optional Firebase email/password sign-in, Firestore note/data sync and Firebase Storage attachment sync. You bring your own Firebase project configuration.
 
