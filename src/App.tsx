@@ -71,7 +71,7 @@ export default function App() {
     if (section === "bookmarks" && !n.bookmarked) return false;
     if (section === "all" && n.kind !== "page" && n.kind !== "topic") return false;
     if (section === "folders" && n.kind !== "folder") return false;
-    if (query) return n.title.toLowerCase().includes(query.toLowerCase()) || n.tags.some(t => t.toLowerCase().includes(query.toLowerCase())) || n.html?.replace(/<[^>]*>/g, " ").toLowerCase().includes(query.toLowerCase());
+    if (query) { const q=query.startsWith("#")?query.slice(1):query; if(query.startsWith("#")) return n.tags.some(t=>t.toLowerCase().includes(q.toLowerCase())); return n.title.toLowerCase().includes(q.toLowerCase()) || n.tags.some(t => t.toLowerCase().includes(q.toLowerCase())) || n.html?.replace(/<[^>]*>/g, " ").toLowerCase().includes(q.toLowerCase()) || n.blocks.some(b=>b.text.toLowerCase().includes(q.toLowerCase()) || b.extra?.toLowerCase().includes(q.toLowerCase()) || (b.type==="file" && data.texts?.[b.text]?.toLowerCase().includes(q.toLowerCase()))); }
     return true;
   }), [data.nodes, section, query]);
   const updateNote = (id: string, patch: Partial<Note>) => setData(d => ({ ...d, nodes: d.nodes.map(n => n.id === id ? { ...n, ...patch, updated: Date.now() } : n) }));
