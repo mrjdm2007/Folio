@@ -55,6 +55,7 @@ export default function App() {
   const importRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLInputElement>(null);
   const current = data.nodes.find(n => n.id === selected && !n.deleted);
+  useEffect(()=>{const url=new URL(window.location.href);if(url.searchParams.get("shared")==="1"){setSection("documents");url.searchParams.delete("shared");window.history.replaceState(null,"",url.pathname)}},[]);
   useEffect(() => { db.state.get("main").then(row => {
     const loaded = row?.value ?? blankData();
     if (!loaded.nodes.length) { const welcome = seedNote(); loaded.nodes = [welcome]; setSelected(welcome.id); }
