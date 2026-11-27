@@ -9,7 +9,8 @@ Folio is a **web-only Progressive Web App**. The maintained product is the brows
 - **Migration and backup:** import the Android Folio JSON backup envelope, including its attachment map; export the complete local library and attachments to one JSON backup.
 - **Study:** spaced-repetition flashcards, AI flashcard generation through a user-supplied Gemini API key, multiple-choice question bank and practice, exam calendar/checklists, focus timer, daily goal and study history.
 - **Engineering tools:** SI and electronics unit conversion (V, A, Ω, F, H, power, frequency, etc.), graph plotting, saved graphs and a LaTeX formula library with KaTeX preview.
-- **Documents:** receive supported files from the Android share sheet when Folio is installed; browser PDF preview and text extraction, OCR for scanned PDF pages and images, DOCX/PPTX/XLSX text extraction, and TXT/Markdown/CSV/JSON reading. Extracted text can be saved as a note.
+- **PDF uploads:** upload multiple PDFs, keep them in a local PDF library, view file size and upload date, download or delete files. No document viewer, OCR or in-app document opening.
+
 - **PWA:** responsive phone/desktop layout, installable manifest, service worker and app-shell offline fallback.
 - **Cloud sync:** optional Firebase email/password sign-in, Firestore note/data sync and Firebase Storage attachment sync. You bring your own Firebase project configuration.
 
@@ -29,7 +30,7 @@ npm run preview
 
 In Settings → Import Folio backup, select the JSON backup created by the Android app. The web importer retains the shared data fields (notes, folders, tags, bookmarks, flashcards, questions, exams, study sessions, formulas, saved graphs and extracted document text) and restores attachment bytes into browser storage. After import, immediately export a fresh Folio Web backup as a safety copy.
 
-The app stores its working library in the current browser profile. Clearing browser site data clears that local copy, so export backups regularly. Use Firebase sync below to keep a remote copy and move data between devices.
+Uploaded PDFs and the notes library are stored in the current browser profile. Clearing browser site data clears that local copy, so export backups regularly. Use Firebase sync below to keep a remote copy and move data between devices.
 
 ## Firebase cloud sync setup
 
