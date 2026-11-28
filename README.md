@@ -1,4 +1,4 @@
-# Folio (Android, v0.8)
+# Folio (Android, v0.9)
 
 Open this folder in Android Studio (Koala or newer), let Gradle sync, then Run on your phone.
 The first build downloads KaTeX into app/src/main/assets/katex so equations work offline (needs internet once).
