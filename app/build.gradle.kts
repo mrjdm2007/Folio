@@ -1,5 +1,4 @@
 import java.util.Properties
-import java.net.URL
 
 plugins {
     id("com.android.application")
@@ -14,7 +13,7 @@ val ks = Properties().apply { if (ksFile.exists()) ksFile.inputStream().use { lo
 android {
     namespace = "com.folio.app"
     compileSdk = 34
-    defaultConfig { applicationId = "com.folio.app"; minSdk = 26; targetSdk = 34; versionCode = 8; versionName = "0.8" }
+    defaultConfig { applicationId = "com.folio.app"; minSdk = 26; targetSdk = 34; versionCode = 9; versionName = "0.9" }
     signingConfigs {
         if (ksFile.exists()) create("release") {
             storeFile = file(ks.getProperty("storeFile"))
@@ -63,7 +62,7 @@ tasks.register("downloadKatex") {
             val out = File(katexDir, f)
             if (!out.exists()) {
                 out.parentFile.mkdirs()
-                try { URL(base + f).openStream().use { i -> out.outputStream().use { o -> i.copyTo(o) } } }
+                try { java.net.URL(base + f).openStream().use { i -> out.outputStream().use { o -> i.copyTo(o) } } }
                 catch (e: Exception) { println("KaTeX download skipped for $f: ${e.message}") }
             }
         }
@@ -76,7 +75,7 @@ fun fetchFirst(out: File, urls: List<String>) {
     out.parentFile.mkdirs()
     for (u in urls) {
         try {
-            URL(u).openStream().use { i -> out.outputStream().use { o -> i.copyTo(o) } }
+            java.net.URL(u).openStream().use { i -> out.outputStream().use { o -> i.copyTo(o) } }
             if (out.length() > 1000) return
         } catch (e: Exception) { }
     }

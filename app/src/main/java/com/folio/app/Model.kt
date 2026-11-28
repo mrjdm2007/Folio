@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import android.media.RingtoneManager
 import android.graphics.Bitmap
 import kotlinx.coroutines.Dispatchers
@@ -292,7 +293,7 @@ class Store(app: Application) : AndroidViewModel(app) {
             if (timerLeft <= 0 && timerRunning) finishTimer()
         }
     }
-    fun changeTimerMinutes(m: Int) { if (!timerRunning) { timerMinutes = m; timerLeft = m * 60; saveTimer() } }
+    fun setTimerMinutes(m: Int) { if (!timerRunning) { timerMinutes = m; timerLeft = m * 60; saveTimer() } }
     fun timerToggle() {
         if (timerRunning) {
             timerJob?.cancel(); timerRunning = false
@@ -327,6 +328,34 @@ class Store(app: Application) : AndroidViewModel(app) {
     fun renameDeck(old: String, new: String) =
         update { d -> d.copy(cards = d.cards.map { if (it.deck == old) it.copy(deck = new.ifBlank { old }) else it }) }
     val appStart = now()
+
+    // ---- Folio AI (chat lives here so it keeps running while you switch screens) ----
+    val aiMessages = mutableStateListOf<AiMsg>()
+    var aiBusy by mutableStateOf(false); private set
+    var aiError by mutableStateOf("")
+    var aiPinned by mutableStateOf<String?>(null)
+    var wantScribe by mutableStateOf(false)
+    var aiCfg by mutableStateOf(AiPrefs.load(app)); private set
+    private var aiJob: Job? = null
+    fun saveAiCfg(c: AiCfg) { aiCfg = c; AiPrefs.save(app, c) }
+    fun newChat() { aiJob?.cancel(); aiMessages.clear(); aiError = ""; aiBusy = false }
+    fun askAi(question: String, mode: String) {
+        if (question.isBlank() || aiBusy) return
+        val cfg = aiCfg
+        if (cfg.key.isBlank() || cfg.model.isBlank()) { aiError = "Open Setup, enter your API key and choose a model first."; return }
+        aiError = ""; aiBusy = true
+        val history = aiMessages.takeLast(6).map { it.role to it.text }
+        val pinned = aiPinned
+        aiMessages.add(AiMsg("user", question, mode = mode))
+        aiJob = viewModelScope.launch {
+            try {
+                aiMessages.add(withContext(Dispatchers.IO) { Scribe.answer(this@Store, cfg, question, mode, history, pinned) })
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e
+            } catch (e: java.io.IOException) { aiError = "Couldn't connect. Check your internet connection and try again."
+            } catch (e: Exception) { aiError = e.message ?: "Something went wrong. Please try again."
+            } finally { aiBusy = false }
+        }
+    }
 
     /** One card per {{hidden}} part: the sentence with that part blanked out on the front, the part itself on the back. */
     fun addClozeCards(deck: String, text: String): Int {

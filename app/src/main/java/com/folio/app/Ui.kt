@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Search
@@ -183,6 +184,7 @@ fun Modifier.glass(shape: Shape): Modifier = this.clip(shape)
     var view by remember { mutableStateOf<ViewTarget?>(null) }
     val p = page?.takeIf { s.node(it) != null }
     val wide = LocalConfiguration.current.screenWidthDp >= 600
+    LaunchedEffect(s.wantScribe) { if (s.wantScribe) { tab = 2; page = null; reading = false; view = null; s.wantScribe = false } }
     val ctx = LocalContext.current
     LaunchedEffect(s.incoming) { s.incoming?.let { view = it; s.incoming = null } }
     Box(Modifier.fillMaxSize()) {
@@ -195,11 +197,11 @@ fun Modifier.glass(shape: Shape): Modifier = this.clip(shape)
             }) { reading = false }
         } else key(p) { Editor(s, p, onRead = { reading = true }, onFile = { view = it }, onClose = { page = null }) }
     } else {
-        val items = listOf("Library" to Icons.Filled.LibraryBooks, "Study" to Icons.Filled.School, "Tools" to Icons.Filled.Build, "More" to Icons.Filled.MoreHoriz)
+        val items = listOf("Library" to Icons.Filled.LibraryBooks, "Study" to Icons.Filled.School, "Folio AI" to Icons.Filled.AutoAwesome, "Tools" to Icons.Filled.Build, "More" to Icons.Filled.MoreHoriz)
         val body: @Composable () -> Unit = {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                 Box(Modifier.widthIn(max = 900.dp).fillMaxSize()) {
-                    when (tab) { 0 -> Library(s) { page = it }; 1 -> StudyScreen(s) { page = it }; 2 -> ToolsScreen(s); else -> MoreScreen(s, { page = it }) { view = it } }
+                    when (tab) { 0 -> Library(s) { page = it }; 1 -> StudyScreen(s) { page = it }; 2 -> ScribeScreen(s) { page = it }; 3 -> ToolsScreen(s); else -> MoreScreen(s, { page = it }) { view = it } }
                 }
             }
         }
@@ -414,6 +416,7 @@ fun Modifier.glass(shape: Shape): Modifier = this.clip(shape)
                             val days = s.nextRevisionDays(n); s.markRevised(id)
                             Toast.makeText(ctx, "Next revision in $days day(s)", Toast.LENGTH_SHORT).show(); menu = false
                         })
+                        DropdownMenuItem(text = { Text("Ask Folio AI about this page") }, onClick = { s.aiPinned = id; s.wantScribe = true; menu = false })
                         DropdownMenuItem(text = { Text("Save now") }, onClick = { s.flush(); Toast.makeText(ctx, "Saved", Toast.LENGTH_SHORT).show(); menu = false })
                         DropdownMenuItem(text = { Text("Insert template…") }, onClick = { tplPick = true; menu = false })
                         DropdownMenuItem(text = { Text("Save flashcards to deck") }, onClick = {
