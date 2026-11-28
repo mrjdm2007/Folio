@@ -10,7 +10,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -131,7 +130,8 @@ class HeightBridge(private val cb: (Int) -> Unit) {
         when {
             !f.exists() -> Text("This file is missing from app storage.", Modifier.padding(16.dp))
             ext == "pdf" -> PdfViewer(s, t, f)
-            ext in listOf("docx", "pptx", "xlsx", "txt", "md", "csv") -> DocViewer(f, ext)
+            ext in listOf("docx", "pptx", "xlsx") -> OfficeView(f, ext)
+            ext in listOf("txt", "md", "csv") -> DocViewer(f, ext)
             else -> Text("Can't display .$ext files. Supported: PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx) and plain text. Older .doc / .ppt / .xls files are not supported.", Modifier.padding(16.dp))
         }
     }
@@ -256,12 +256,12 @@ suspend fun ocr(b: Bitmap): String = suspendCoroutine { c ->
         else -> {
             val parts = r.getOrNull().orEmpty()
             if (parts.all { it.lines.isEmpty() }) Text("No readable text found in this file.", Modifier.padding(16.dp))
-            else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            else LazyColumn(Modifier.fillMaxSize().background(Color.White), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 parts.forEach { part ->
-                    if (part.title.isNotBlank()) item { Text(part.title, color = Gold, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+                    if (part.title.isNotBlank()) item { Text(part.title, color = Color(0xFF107C41), fontSize = 20.sp, fontWeight = FontWeight.Bold) }
                     items(part.lines) { line ->
-                        if (line.startsWith("#")) Text(line.drop(1), fontSize = 22.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif)
-                        else Text(line, fontSize = 17.sp, lineHeight = 26.sp, fontFamily = FontFamily.Serif)
+                        if (line.startsWith("#")) Text(line.drop(1), color = Color(0xFF111111), fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        else Text(line, color = Color(0xFF111111), fontSize = 16.sp, lineHeight = 24.sp)
                     }
                 }
             }
@@ -300,5 +300,54 @@ suspend fun ocr(b: Bitmap): String = suspendCoroutine { c ->
             else { drawCircle(Gold, 16f, Offset(a.x * size.width, a.y * size.height)); drawCircle(Graphite, 7f, Offset(a.x * size.width, a.y * size.height)) }
         }
         drag?.let { (a, b) -> drawRect(hl, Offset(min(a.x, b.x), min(a.y, b.y)), Size(abs(a.x - b.x), abs(a.y - b.y))) }
+    }
+}
+
+class DocBridge(private val cb: (String) -> Unit) {
+    @JavascriptInterface fun fail(m: String) { Handler(Looper.getMainLooper()).post { cb(m) } }
+}
+
+/**
+ * Shows Word / PowerPoint / Excel files with their real layout (pages, tables, text boxes, images) using
+ * open-source web renderers stored inside the app. The page is plain white/grey, not the app theme.
+ * If the renderer files are missing or fail on a file, the text-only viewer is shown instead.
+ */
+@SuppressLint("SetJavaScriptEnabled")
+@Composable fun OfficeView(f: File, ext: String) {
+    val ctx = LocalContext.current
+    val libs = remember { runCatching { ctx.assets.list("viewer")?.toList().orEmpty() }.getOrDefault(emptyList()) }
+    val need = when (ext) { "docx" -> "docx-preview.min.js"; "xlsx" -> "xlsx.full.min.js"; else -> "pptx-preview.umd.js" }
+    var failed by remember(f) { mutableStateOf<String?>(null) }
+    if (need !in libs || failed != null) {
+        Column(Modifier.fillMaxSize()) {
+            Text(if (need !in libs) "Exact-layout viewer files are not installed yet (they are downloaded on the first build with internet). Showing text only."
+                 else "Couldn't draw this file with its original layout (${failed}). Showing text only.",
+                color = Gold, fontSize = 12.sp, modifier = Modifier.padding(12.dp))
+            DocViewer(f, ext)
+        }
+    } else key(f) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { c ->
+                val loader = WebViewAssetLoader.Builder()
+                    .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(c))
+                    .addPathHandler("/doc/", WebViewAssetLoader.PathHandler { _ -> WebResourceResponse("application/octet-stream", null, java.io.FileInputStream(f)) })
+                    .build()
+                WebView(c).apply {
+                    setBackgroundColor(android.graphics.Color.parseColor("#E6E6E6"))
+                    settings.javaScriptEnabled = true
+                    settings.setSupportZoom(true)
+                    settings.builtInZoomControls = true
+                    settings.displayZoomControls = false
+                    settings.useWideViewPort = true
+                    settings.loadWithOverviewMode = true
+                    addJavascriptInterface(DocBridge { m -> failed = m }, "FolioDoc")
+                    webViewClient = object : WebViewClient() {
+                        override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? =
+                            request?.let { loader.shouldInterceptRequest(it.url) }
+                    }
+                    loadUrl("https://appassets.androidplatform.net/assets/viewer/office.html?type=$ext")
+                }
+            })
     }
 }

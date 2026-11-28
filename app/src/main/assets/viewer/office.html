@@ -1,0 +1,40 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Document</title>
+<style>
+ html,body{margin:0;padding:0;background:#e6e6e6;font-family:Arial,Helvetica,sans-serif}
+ #msg{padding:16px;color:#444;font-size:15px}
+ #tabs{position:sticky;top:0;background:#f3f3f3;border-bottom:1px solid #ccc;white-space:nowrap;overflow-x:auto;z-index:5;display:none}
+ #tabs button{border:0;background:none;padding:10px 14px;font-size:14px;color:#222}
+ #tabs button.on{background:#fff;font-weight:bold;border-bottom:2px solid #107c41}
+ #c.xl{background:#fff;overflow:auto}
+ #c.xl table{border-collapse:collapse;font:13px Calibri,Arial,sans-serif;color:#000}
+ #c.xl td,#c.xl th{border:1px solid #d0d0d0;padding:2px 6px;white-space:pre;vertical-align:top}
+ .docx-wrapper{background:#e6e6e6 !important;padding:8px 0 !important}
+</style></head>
+<body><div id="msg">Loading…</div><div id="tabs"></div><div id="c"></div>
+<script>
+function load(src){return new Promise(function(ok,no){var s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=function(){no(new Error('missing '+src))};document.head.appendChild(s)})}
+function fail(m){document.getElementById('msg').textContent='';try{FolioDoc.fail(String(m))}catch(e){}}
+var type=new URLSearchParams(location.search).get('type');
+var c=document.getElementById('c'), msg=document.getElementById('msg');
+function fit(){var w=c.scrollWidth,vw=window.innerWidth;if(w>vw&&w>0){c.style.zoom=vw/w}}
+fetch('/doc/file').then(function(r){return r.arrayBuffer()}).then(async function(buf){
+  try{
+    if(type==='docx'){
+      await load('jszip.min.js'); await load('docx-preview.min.js');
+      await docx.renderAsync(buf,c,null,{inWrapper:true,breakPages:true,renderHeaders:true,renderFooters:true,renderFootnotes:true,renderEndnotes:true,useBase64URL:true});
+      msg.style.display='none'; fit();
+    } else if(type==='xlsx'){
+      await load('xlsx.full.min.js');
+      var wb=XLSX.read(buf,{type:'array'}); var tabs=document.getElementById('tabs'); tabs.style.display='block'; c.className='xl';
+      var show=function(i){c.innerHTML=XLSX.utils.sheet_to_html(wb.Sheets[wb.SheetNames[i]],{header:'',footer:''});[].forEach.call(tabs.children,function(b,j){b.className=(j===i)?'on':''})};
+      wb.SheetNames.forEach(function(n,i){var b=document.createElement('button');b.textContent=n;b.onclick=function(){show(i)};tabs.appendChild(b)});
+      show(0); msg.style.display='none';
+    } else if(type==='pptx'){
+      await load('pptx-preview.umd.js');
+      var w=Math.max(320,window.innerWidth-16);
+      var p=pptxPreview.init(c,{width:w,height:Math.round(w*9/16),mode:'list'}); await p.preview(buf); msg.style.display='none';
+    } else fail('Unsupported type');
+  }catch(e){fail(e&&e.message?e.message:e)}
+}).catch(function(e){fail(e&&e.message?e.message:e)});
+</script></body></html>

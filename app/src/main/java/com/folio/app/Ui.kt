@@ -34,6 +34,11 @@ import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Undo
+import androidx.compose.material.icons.filled.Redo
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
@@ -101,9 +106,9 @@ val Gold = Color(0xFFD4B26A)
 val Graphite = Color(0xFF17191C)
 val Panel = Color(0xFF24272B)
 val Ink = Color(0xFFECE6D8)
-val BLOCK_TYPES = listOf("text", "h1", "h2", "bullet", "number", "check", "quote", "code", "latex", "table", "flash")
+val BLOCK_TYPES = listOf("text", "h1", "h2", "bullet", "number", "check", "quote", "code", "latex", "table", "quiz", "cloze", "flash")
 val TYPE_LABEL = mapOf("text" to "Text", "h1" to "Title", "h2" to "Heading", "bullet" to "Bullets", "number" to "Numbers",
-    "check" to "Checklist", "quote" to "Quote", "code" to "Code", "latex" to "Equation", "table" to "Table", "flash" to "Flashcard")
+    "check" to "Checklist", "quote" to "Quote", "code" to "Code", "latex" to "Equation", "table" to "Table", "quiz" to "Question", "cloze" to "Fill blank", "flash" to "Flashcard")
 
 // Claude's own typeface is proprietary, so the app uses the system serif for headings and reading.
 // To use another font, add a .ttf to res/font and replace FontFamily.Serif with FontFamily(Font(R.font.yourfont)).
@@ -194,7 +199,7 @@ fun Modifier.glass(shape: Shape): Modifier = this.clip(shape)
         val body: @Composable () -> Unit = {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                 Box(Modifier.widthIn(max = 900.dp).fillMaxSize()) {
-                    when (tab) { 0 -> Library(s) { page = it }; 1 -> StudyScreen(s); 2 -> ToolsScreen(s); else -> MoreScreen(s, { page = it }) { view = it } }
+                    when (tab) { 0 -> Library(s) { page = it }; 1 -> StudyScreen(s) { page = it }; 2 -> ToolsScreen(s); else -> MoreScreen(s, { page = it }) { view = it } }
                 }
             }
         }
@@ -224,6 +229,7 @@ fun Modifier.glass(shape: Shape): Modifier = this.clip(shape)
     var cur by remember { mutableStateOf<String?>(null) }
     var q by remember { mutableStateOf("") }
     var add by remember { mutableStateOf(false) }
+    var sortMode by remember { mutableIntStateOf(0) }
     var askName by remember { mutableStateOf(s.data.userName.isBlank() && !s.data.nameAsked) }
     val node = cur?.let { s.node(it) }
     LaunchedEffect(node == null && cur != null) { if (node == null && cur != null) cur = null }
@@ -235,6 +241,7 @@ fun Modifier.glass(shape: Shape): Modifier = this.clip(shape)
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
                 if (cur != null) Ico(Icons.Filled.ArrowBack, "Up") { cur = node?.parentId }
                 Text(node?.title ?: "Library", style = MaterialTheme.typography.titleLarge, maxLines = 1, modifier = Modifier.weight(1f))
+                Ico(Icons.Filled.FlashOn, "Quick note", Gold) { open(s.quickNote()) }
                 Ico(Icons.Filled.Timer, "Focus timer", if (s.timerRunning) Gold else Ink.copy(alpha = 0.8f)) { s.timerToggle() }
             }
             if (cur != null) Text(s.path(cur!!), color = Gold, fontSize = 12.sp, maxLines = 1)
@@ -245,7 +252,9 @@ fun Modifier.glass(shape: Shape): Modifier = this.clip(shape)
             val tags = s.allTags()
             if (tags.isNotEmpty() && q.isBlank()) Row(Modifier.horizontalScroll(rememberScrollState())) { tags.forEach { t -> Chip("#$t") { q = "#$t" } } }
             val results = if (q.isNotBlank()) s.search(q) else emptyList()
-            val kids = s.children(cur)
+            if (q.isBlank()) Row { Chip("Sort: " + listOf("manual", "A to Z", "recent")[sortMode]) { sortMode = (sortMode + 1) % 3 } }
+            val kids0 = s.children(cur)
+            val kids = when (sortMode) { 1 -> kids0.sortedBy { it.title.lowercase() }; 2 -> kids0.sortedByDescending { it.updated }; else -> kids0 }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 96.dp)) {
                 if (q.isNotBlank()) {
                     if (results.isEmpty()) item { Text("No matches.", color = Ink.copy(alpha = 0.6f)) }
@@ -317,6 +326,11 @@ fun Modifier.glass(shape: Shape): Modifier = this.clip(shape)
     var fresh by remember { mutableStateOf<String?>(null) }
     var cmd by remember { mutableStateOf<FmtCmd?>(null) }
     var linkPick by remember { mutableStateOf(false) }
+    var formulaPick by remember { mutableStateOf(false) }
+    var sketch by remember { mutableStateOf(false) }
+    var tplPick by remember { mutableStateOf(false) }
+    var findOpen by remember { mutableStateOf(false) }
+    var outlineOpen by remember { mutableStateOf(false) }
     var tagText by remember(id) { mutableStateOf(n.tags.joinToString(", ")) }
     fun addAttachment(uri: Uri, asImage: Boolean) {
         s.attach(uri)?.let { (stored, name) ->
@@ -341,6 +355,29 @@ fun Modifier.glass(shape: Shape): Modifier = this.clip(shape)
     val exportPdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
         uri?.let { ctx.contentResolver.openOutputStream(it)?.use { o -> exportPagePdf(s, s.node(id)!!, o) } }
     }
+    val exportMd = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/markdown")) { uri ->
+        uri?.let { ctx.contentResolver.openOutputStream(it)?.use { o -> o.write(pageToMarkdown(s.node(id)!!).toByteArray()) } }
+    }
+    /** Replaces one block by up to three: text before, the selection as [target] type, text after. "topic" makes a new topic and links to it. */
+    fun convertSel(blockId: String, origType: String, before: String, sel: String, after: String, target: String) {
+        val clean = sel.trim().let { if (target == "h1" || target == "h2") it.trimEnd('.', ':') else it }
+        if (target == "topic") {
+            val title = clean.trimEnd('.').take(80)
+            s.add(s.node(id)?.parentId, "topic", title)
+            s.editBlocks(id) { l -> l.map { b -> if (b.id == blockId) b.copy(text = before + "[[" + title + "]]" + after) else b } }
+            Toast.makeText(ctx, "Created topic \"$title\" and linked it", Toast.LENGTH_SHORT).show()
+        } else {
+            val keep = if (origType in listOf("h1", "h2", "code", "latex", "table", "flash", "image", "file")) "text" else origType
+            val mid = Block(type = target, text = clean)
+            val parts = buildList {
+                if (before.isNotBlank()) add(Block(type = keep, text = before.trimEnd()))
+                add(mid)
+                if (after.isNotBlank()) add(Block(type = keep, text = after.trimStart()))
+            }
+            s.editBlocks(id) { l -> l.flatMap { b -> if (b.id == blockId) parts else listOf(b) } }
+            active = mid.id
+        }
+    }
     fun paste() {
         val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val item = cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)
@@ -354,6 +391,8 @@ fun Modifier.glass(shape: Shape): Modifier = this.clip(shape)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Ico(Icons.Filled.ArrowBack, "Back", onClick = onClose)
                 Text(s.path(id).substringBeforeLast(" › ", ""), color = Gold, fontSize = 11.sp, maxLines = 1, modifier = Modifier.weight(1f))
+                Ico(Icons.Filled.Undo, "Undo", if (s.canUndo(id)) Ink.copy(alpha = 0.8f) else Ink.copy(alpha = 0.25f)) { s.undo(id) }
+                Ico(Icons.Filled.Redo, "Redo", if (s.canRedo(id)) Ink.copy(alpha = 0.8f) else Ink.copy(alpha = 0.25f)) { s.redo(id) }
                 Ico(Icons.Filled.Save, "Save snapshot") { s.editNode(id) { it.copy(history = it.history + Snap(now(), it.title, it.blocks)) } }
                 Ico(Icons.Filled.History, "History") { hist = true }
                 Ico(Icons.Filled.Timer, "Focus timer", if (s.timerRunning) Gold else Ink.copy(alpha = 0.8f)) { s.timerToggle() }
@@ -363,6 +402,25 @@ fun Modifier.glass(shape: Shape): Modifier = this.clip(shape)
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(text = { Text("Merge with next page") }, onClick = { s.mergeNext(id); menu = false })
                         DropdownMenuItem(text = { Text("Export as PDF") }, onClick = { exportPdf.launch(n.title.ifBlank { "page" } + ".pdf"); menu = false })
+                        DropdownMenuItem(text = { Text("Export as Markdown") }, onClick = { exportMd.launch(n.title.ifBlank { "page" } + ".md"); menu = false })
+                        DropdownMenuItem(text = { Text("Outline…") }, onClick = { outlineOpen = true; menu = false })
+                        DropdownMenuItem(text = { Text("Page statistics") }, onClick = {
+                            val all = n.blocks.joinToString(" ") { it.text }
+                            val words = all.split(Regex("\\s+")).count { it.isNotBlank() }
+                            Toast.makeText(ctx, "$words words · ${all.length} characters · ${n.blocks.size} blocks · about ${maxOf(1, words / 200)} min to read", Toast.LENGTH_LONG).show(); menu = false
+                        })
+                        DropdownMenuItem(text = { Text("Find in page…") }, onClick = { findOpen = true; menu = false })
+                        DropdownMenuItem(text = { Text(if (n.revDue == 0L) "Start revising this topic" else "Mark as revised") }, onClick = {
+                            val days = s.nextRevisionDays(n); s.markRevised(id)
+                            Toast.makeText(ctx, "Next revision in $days day(s)", Toast.LENGTH_SHORT).show(); menu = false
+                        })
+                        DropdownMenuItem(text = { Text("Save now") }, onClick = { s.flush(); Toast.makeText(ctx, "Saved", Toast.LENGTH_SHORT).show(); menu = false })
+                        DropdownMenuItem(text = { Text("Insert template…") }, onClick = { tplPick = true; menu = false })
+                        DropdownMenuItem(text = { Text("Save flashcards to deck") }, onClick = {
+                            val cards = n.blocks.filter { it.type == "flash" && it.text.isNotBlank() }
+                            cards.forEach { s.addCard(n.title, it.text, it.extra) }
+                            Toast.makeText(ctx, "${cards.size} flashcard(s) saved to deck \"${n.title}\"", Toast.LENGTH_SHORT).show(); menu = false
+                        })
                     }
                 }
             }
@@ -378,7 +436,8 @@ fun Modifier.glass(shape: Shape): Modifier = this.clip(shape)
                 decorationBox = { inner -> Box { if (tagText.isEmpty()) Text("Add tags, separated by commas", style = tagStyle.copy(color = Gold.copy(alpha = 0.4f))); inner() } })
             LazyColumn(Modifier.weight(1f), state = listState, verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 160.dp)) {
                 itemsIndexed(n.blocks, key = { _, b -> b.id }) { i, b ->
-                    BlockEditor(s, id, n, i, b, numberOf(n.blocks, i), active == b.id, fresh == b.id, { active = b.id; if (fresh == b.id) fresh = null }, onFile, { bid, bf, af -> pasteFile(bid, bf, af) }, cmd, { cmd = null })
+                    BlockEditor(s, id, n, i, b, numberOf(n.blocks, i), active == b.id, fresh == b.id, { active = b.id; if (fresh == b.id) fresh = null }, onFile, { bid, bf, af -> pasteFile(bid, bf, af) }, cmd, { cmd = null },
+                        { bid, ot, bf, sel, af, ty -> convertSel(bid, ot, bf, sel, af, ty) })
                 }
             }
             if (active != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
@@ -387,6 +446,12 @@ fun Modifier.glass(shape: Shape): Modifier = this.clip(shape)
                 Ico(Icons.Filled.Code, "Code") { cmd = FmtCmd(now(), "`") }
                 Ico(Icons.Filled.Highlight, "Highlight") { cmd = FmtCmd(now(), "==") }
                 Ico(Icons.Filled.Link, "Link to a topic") { linkPick = true }
+            }
+            if (active != null) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+                Text("Turn selection into", fontSize = 12.sp, color = Ink.copy(alpha = 0.55f), modifier = Modifier.padding(horizontal = 8.dp))
+                listOf("h1" to "Title", "h2" to "Heading", "bullet" to "Bullet", "number" to "Numbered", "check" to "To-do", "quote" to "Quote",
+                    "code" to "Code", "latex" to "Equation", "flash" to "Flashcard", "topic" to "New topic")
+                    .forEach { (ty, label) -> Chip(label) { cmd = FmtCmd(now(), convert = ty) } }
             }
             GlassCard(Modifier.fillMaxWidth().padding(vertical = 6.dp), RoundedCornerShape(16.dp)) {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp)) {
@@ -400,11 +465,26 @@ fun Modifier.glass(shape: Shape): Modifier = this.clip(shape)
                     }
                     Chip("+ Image") { pickImg.launch("image/*") }
                     Chip("+ File / PDF") { pickFile.launch(arrayOf("*/*")) }
+                    Chip("+ Formula") { formulaPick = true }
+                    Chip("+ Sketch") { sketch = true }
                     Chip("Paste") { paste() }
                 }
             }
         }
     }
+    if (formulaPick) FormulaPicker(s, onPick = { f ->
+        val nb = Block(type = "latex", text = f.latex); val tail = Block()
+        s.insertBlocks(id, active, listOf(nb, tail)); active = tail.id; fresh = tail.id
+    }, onClose = { formulaPick = false })
+    if (sketch) SketchDialog(onSave = { bmp ->
+        s.saveBitmap(bmp)?.let { stored ->
+            val att = Block(type = "image", text = stored, extra = "Sketch"); val tail = Block()
+            s.insertBlocks(id, active, listOf(att, tail)); active = tail.id; fresh = tail.id
+        }
+    }, onClose = { sketch = false })
+    if (outlineOpen) OutlineDialog(n.blocks, onGo = { i -> active = n.blocks[i].id; scope.launch { listState.animateScrollToItem(i) } }, onClose = { outlineOpen = false })
+    if (findOpen) FindDialog(n.blocks, onGo = { i -> active = n.blocks[i].id; scope.launch { listState.animateScrollToItem(i) } }, onClose = { findOpen = false })
+    if (tplPick) TemplateDialog(onPick = { s.applyTemplate(id, it) }, onClose = { tplPick = false })
     if (linkPick) TopicPicker(s, "Link to topic", onPick = { cmd = FmtCmd(now(), insert = "[[${it.title}]]") }, onClose = { linkPick = false })
     if (hist) AlertDialog(onDismissRequest = { hist = false }, containerColor = Color(0xFF202327).copy(alpha = 0.95f), shape = RoundedCornerShape(24.dp), title = { Text("Revision history") },
         text = {
@@ -417,7 +497,8 @@ fun Modifier.glass(shape: Shape): Modifier = this.clip(shape)
         }, confirmButton = { TextButton({ hist = false }) { Text("Close") } })
 }
 
-@Composable fun BlockEditor(s: Store, pid: String, n: Node, i: Int, b: Block, num: Int, active: Boolean, fresh: Boolean, onActive: () -> Unit, onFile: (ViewTarget) -> Unit, onPasteFile: (String, String, String) -> Unit, cmd: FmtCmd?, onCmdDone: () -> Unit) {
+@Composable fun BlockEditor(s: Store, pid: String, n: Node, i: Int, b: Block, num: Int, active: Boolean, fresh: Boolean, onActive: () -> Unit, onFile: (ViewTarget) -> Unit, onPasteFile: (String, String, String) -> Unit, cmd: FmtCmd?, onCmdDone: () -> Unit,
+                 onConvert: (String, String, String, String, String, String) -> Unit) {
     fun upd(nb: Block) = s.editBlocks(pid) { l -> l.map { x -> if (x.id == b.id) nb else x } }
     var dy by remember { mutableFloatStateOf(0f) }
     var hgt by remember { mutableIntStateOf(1) }
@@ -430,13 +511,17 @@ fun Modifier.glass(shape: Shape): Modifier = this.clip(shape)
         when (b.type) {
             "check" -> Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(b.checked, { upd(b.copy(checked = it)) }, colors = CheckboxDefaults.colors(checkedColor = Gold, checkmarkColor = Graphite))
-                BlockField(b.text, "To-do", b.type, onActive, fresh, onPasteFile = { bf, af -> onPasteFile(b.id, bf, af) }, cmd = if (active) cmd else null, onCmdDone = onCmdDone) { upd(b.copy(text = it)) }
+                BlockField(b.text, "To-do", b.type, onActive, fresh, onPasteFile = { bf, af -> onPasteFile(b.id, bf, af) }, cmd = if (active) cmd else null, onCmdDone = onCmdDone,
+                    onConvert = { bf, sel, af, ty -> onConvert(b.id, b.type, bf, sel, af, ty) }) { upd(b.copy(text = it)) }
             }
-            "bullet" -> Row { Text("•", color = Gold, modifier = Modifier.padding(end = 10.dp, top = 1.dp)); BlockField(b.text, "List item", b.type, onActive, fresh, onPasteFile = { bf, af -> onPasteFile(b.id, bf, af) }, cmd = if (active) cmd else null, onCmdDone = onCmdDone) { upd(b.copy(text = it)) } }
-            "number" -> Row { Text("$num.", color = Gold, modifier = Modifier.padding(end = 10.dp, top = 1.dp)); BlockField(b.text, "List item", b.type, onActive, fresh, onPasteFile = { bf, af -> onPasteFile(b.id, bf, af) }, cmd = if (active) cmd else null, onCmdDone = onCmdDone) { upd(b.copy(text = it)) } }
+            "bullet" -> Row { Text("•", color = Gold, modifier = Modifier.padding(end = 10.dp, top = 1.dp)); BlockField(b.text, "List item", b.type, onActive, fresh, onPasteFile = { bf, af -> onPasteFile(b.id, bf, af) }, cmd = if (active) cmd else null, onCmdDone = onCmdDone,
+                    onConvert = { bf, sel, af, ty -> onConvert(b.id, b.type, bf, sel, af, ty) }) { upd(b.copy(text = it)) } }
+            "number" -> Row { Text("$num.", color = Gold, modifier = Modifier.padding(end = 10.dp, top = 1.dp)); BlockField(b.text, "List item", b.type, onActive, fresh, onPasteFile = { bf, af -> onPasteFile(b.id, bf, af) }, cmd = if (active) cmd else null, onCmdDone = onCmdDone,
+                    onConvert = { bf, sel, af, ty -> onConvert(b.id, b.type, bf, sel, af, ty) }) { upd(b.copy(text = it)) } }
             "quote" -> Row(Modifier.height(IntrinsicSize.Min)) {
                 Box(Modifier.width(3.dp).fillMaxHeight().background(Gold)); Spacer(Modifier.width(10.dp))
-                BlockField(b.text, "Quote", b.type, onActive, fresh, onPasteFile = { bf, af -> onPasteFile(b.id, bf, af) }, cmd = if (active) cmd else null, onCmdDone = onCmdDone) { upd(b.copy(text = it)) }
+                BlockField(b.text, "Quote", b.type, onActive, fresh, onPasteFile = { bf, af -> onPasteFile(b.id, bf, af) }, cmd = if (active) cmd else null, onCmdDone = onCmdDone,
+                    onConvert = { bf, sel, af, ty -> onConvert(b.id, b.type, bf, sel, af, ty) }) { upd(b.copy(text = it)) }
             }
             "code" -> Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFF101214)).padding(10.dp)) {
                 BlockField(b.text, "Code", b.type, onActive, fresh) { upd(b.copy(text = it)) }
@@ -446,6 +531,20 @@ fun Modifier.glass(shape: Shape): Modifier = this.clip(shape)
                 if (b.text.isNotBlank()) MathView(b.text, Ink)
             }
             "table" -> BlockField(b.text, "Header 1 | Header 2\nvalue | value", b.type, onActive, fresh) { upd(b.copy(text = it)) }
+            "cloze" -> Column {
+                BlockField(b.text, "Text with {{hidden}} parts, e.g. A {{capacitor}} stores charge", "text", onActive, fresh) { upd(b.copy(text = it)) }
+                val c = LocalContext.current
+                Chip("Save as flashcards") { Toast.makeText(c, "${s.addClozeCards(n.title, b.text)} card(s) saved", Toast.LENGTH_SHORT).show() }
+            }
+            "quiz" -> Column(Modifier.clip(RoundedCornerShape(10.dp)).background(Color(0xFF232830)).padding(10.dp)) {
+                Text("QUESTION", color = Gold, fontSize = 11.sp, letterSpacing = 1.sp)
+                BlockField(b.text, "Question", "text", onActive, fresh) { upd(b.copy(text = it)) }
+                BlockField(b.extra, "Options, one per line. Put * before the correct one", "text", onActive) { upd(b.copy(extra = it)) }
+                val c = LocalContext.current
+                Chip("Save to question bank") {
+                    Toast.makeText(c, if (s.addQuizBlock(n.title, b)) "Saved to the question bank" else "Needs a question and 2+ options, or it is already saved", Toast.LENGTH_SHORT).show()
+                }
+            }
             "flash" -> Column(Modifier.clip(RoundedCornerShape(10.dp)).background(Color(0xFF2B2A26)).padding(10.dp)) {
                 Text("FLASHCARD", color = Gold, fontSize = 11.sp, letterSpacing = 1.sp)
                 BlockField(b.text, "Front / question", "text", onActive, fresh) { upd(b.copy(text = it)) }
@@ -456,7 +555,8 @@ fun Modifier.glass(shape: Shape): Modifier = this.clip(shape)
             "file" -> Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("📎 ${b.extra}", Modifier.weight(1f)); Chip("Open") { onFile(ViewTarget(b.text, b.extra)) }
             }
-            else -> BlockField(b.text, "Write something…", b.type, onActive, fresh, onPasteFile = { bf, af -> onPasteFile(b.id, bf, af) }, cmd = if (active) cmd else null, onCmdDone = onCmdDone) { upd(b.copy(text = it)) }
+            else -> BlockField(b.text, "Write something…", b.type, onActive, fresh, onPasteFile = { bf, af -> onPasteFile(b.id, bf, af) }, cmd = if (active) cmd else null, onCmdDone = onCmdDone,
+                    onConvert = { bf, sel, af, ty -> onConvert(b.id, b.type, bf, sel, af, ty) }) { upd(b.copy(text = it)) }
         }
         if (active) Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
             if (b.type != "image" && b.type != "file") BLOCK_TYPES.forEach { t -> Chip(TYPE_LABEL[t] ?: t, b.type == t) { upd(b.copy(type = t)) } }
@@ -484,6 +584,7 @@ private val mdVt = VisualTransformation { TransformedText(mdLive(it.text), Offse
 @OptIn(ExperimentalFoundationApi::class)
 @Composable fun BlockField(v: String, label: String, type: String, onFocus: () -> Unit = {}, autoFocus: Boolean = false,
                            onPasteFile: ((String, String) -> Unit)? = null, cmd: FmtCmd? = null, onCmdDone: () -> Unit = {},
+                           onConvert: ((String, String, String, String) -> Unit)? = null,
                            onChange: (String) -> Unit) {
     val ctx = LocalContext.current
     val style = when (type) {
@@ -512,6 +613,12 @@ private val mdVt = VisualTransformation { TransformedText(mdLive(it.text), Offse
         val c = cmd ?: return@LaunchedEffect
         val a = minOf(tfv.selection.start, tfv.selection.end); val b = maxOf(tfv.selection.start, tfv.selection.end)
         val t = tfv.text
+        if (c.convert.isNotEmpty()) {   // turn the selection (or the sentence under the cursor) into its own block
+            var s0 = a; var e0 = b
+            if (s0 == e0) { val r = sentenceRange(t, s0); s0 = r.first; e0 = r.second }
+            if (e0 > s0 && onConvert != null) onConvert(t.substring(0, s0), t.substring(s0, e0), t.substring(e0), c.convert)
+            onCmdDone(); return@LaunchedEffect
+        }
         val (nt, sel) = if (c.insert.isNotEmpty()) ((t.substring(0, a) + c.insert + t.substring(b)) to TextRange(a + c.insert.length))
                         else ((t.substring(0, a) + c.mark + t.substring(a, b) + c.mark + t.substring(b)) to TextRange(a + c.mark.length, b + c.mark.length))
         tfv = TextFieldValue(nt, sel); onChange(nt); onCmdDone()
@@ -549,6 +656,12 @@ private val mdVt = VisualTransformation { TransformedText(mdLive(it.text), Offse
     val prog = if (n.blocks.isEmpty()) 0f else (st.firstVisibleItemIndex + 1f) / (n.blocks.size + 1)
     val words = n.blocks.sumOf { b -> b.text.split(" ").count { w -> w.isNotBlank() } }
     val mins = maxOf(1, words / 200)
+    val ttsCtx = LocalContext.current
+    val tts = remember { Tts(ttsCtx) }
+    DisposableEffect(Unit) { onDispose { tts.shutdown() } }
+    var outline by remember { mutableStateOf(false) }
+    val outlineScope = rememberCoroutineScope()
+    if (outline) OutlineDialog(n.blocks, onGo = { i -> outlineScope.launch { st.animateScrollToItem(i + 1) } }, onClose = { outline = false })
     LaunchedEffect(st) { snapshotFlow { st.firstVisibleItemIndex }.collect { i -> if (i != s.node(id)?.readPos) s.setReadPos(id, i) } }
     BackHandler(onBack = onClose)
     Column(Modifier.fillMaxSize().background(bg)) {
@@ -560,6 +673,8 @@ private val mdVt = VisualTransformation { TransformedText(mdLive(it.text), Offse
             Ico(if (n.bookmarked) Icons.Filled.Star else Icons.Filled.StarBorder, "Bookmark", if (n.bookmarked) Gold else fg) {
                 s.editNode(id) { it.copy(bookmarked = !it.bookmarked) }
             }
+            Ico(if (tts.speaking) Icons.Filled.Stop else Icons.Filled.VolumeUp, "Read aloud", if (tts.speaking) Gold else fg) { if (tts.speaking) tts.stop() else tts.speak(readableText(n)) }
+            Ico(Icons.Filled.FormatListBulleted, "Outline", fg) { outline = true }
             Ico(Icons.Filled.TextFields, "Appearance", fg) { panel = !panel }
         }
         if (panel) Surface(color = fg.copy(alpha = 0.08f), shape = RoundedCornerShape(16.dp), modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
@@ -610,6 +725,8 @@ private val mdVt = VisualTransformation { TransformedText(mdLive(it.text), Offse
                                 }
                             }
                         }
+                        "cloze" -> ClozeReader(b, serif, fg)
+                        "quiz" -> QuizReader(b, serif, fg)
                         "flash" -> Text("Q: ${b.text}\nA: ${b.extra}", style = serif.copy(fontWeight = FontWeight.Medium))
                         else -> MdText(md(b.text), serif, onLink = onLink)
                     }
@@ -620,7 +737,7 @@ private val mdVt = VisualTransformation { TransformedText(mdLive(it.text), Offse
 }
 
 /** A formatting command sent from the editor toolbar to the active text field. */
-data class FmtCmd(val id: Long, val mark: String = "", val insert: String = "")
+data class FmtCmd(val id: Long, val mark: String = "", val insert: String = "", val convert: String = "")
 
 /** Live styling while typing: same text length, markers dimmed, so the cursor never jumps. */
 fun mdLive(src: String): AnnotatedString = buildAnnotatedString {
@@ -710,14 +827,31 @@ fun md(src: String): AnnotatedString = buildAnnotatedString {
 }
 
 val QUIPS = listOf("Every circuit starts with one node.", "Signal over noise today.", "Small steps, clean waveforms.",
-    "Derive it once, remember it forever.", "Curiosity is the best amplifier.")
+    "Derive it once, remember it forever.", "Curiosity is the best amplifier.", "Understanding beats memorising, every time.",
+    "Ten focused minutes beat an hour of scrolling.", "Today's notes are tomorrow's shortcuts.", "Make it clear enough to teach.",
+    "Slow is smooth, smooth is fast.", "Good questions are half the answer.", "One concept at a time.",
+    "Your future self will thank you for these notes.", "Think in systems, write in plain words.")
 
-/** Time-of-day greeting with one line that reflects what is happening in your studies. */
+private val HELLO_LATE = listOf("Still up", "Burning the midnight oil", "Night owl hours", "The quiet hours are yours", "Late session")
+private val HELLO_MORNING = listOf("Good morning", "Morning", "Rise and shine", "Early start", "A fresh page awaits", "Hello again", "Ready when you are")
+private val HELLO_AFTERNOON = listOf("Good afternoon", "Afternoon", "Back at it", "Good to see you", "Let's get into it", "Hello again", "Welcome back")
+private val HELLO_EVENING = listOf("Good evening", "Evening", "Welcome back", "Good to see you", "Ready when you are", "One more good session", "Let's make it count")
+
+/** Time-of-day greeting (varied each launch) with one line that reflects what is happening in your studies. */
 @Composable fun Greeting(s: Store, onName: () -> Unit) {
     val d = s.data
+    val seed = remember { kotlin.random.Random.nextInt(0, 10_000) }
     val h = java.time.LocalTime.now().hour
-    val hello = when { h < 5 -> "Still up"; h < 12 -> "Good morning"; h < 17 -> "Good afternoon"; h < 22 -> "Good evening"; else -> "Good night" }
+    val pool = when { h < 5 -> HELLO_LATE; h < 12 -> HELLO_MORNING; h < 17 -> HELLO_AFTERNOON; else -> HELLO_EVENING }
+    val hello = pool[seed % pool.size]
     val today = java.time.LocalDate.now().toEpochDay()
+    val dayLine = when (java.time.LocalDate.now().dayOfWeek) {
+        java.time.DayOfWeek.MONDAY -> "New week, clean slate."
+        java.time.DayOfWeek.FRIDAY -> "Last push before the weekend."
+        java.time.DayOfWeek.SATURDAY, java.time.DayOfWeek.SUNDAY -> "Weekend focus, no rush."
+        else -> null
+    }
+    val pep = QUIPS + listOfNotNull(dayLine)
     val exam = d.exams.filter { it.date >= today }.minByOrNull { it.date }
     val due = d.cards.count { it.due <= now() }
     val line = when {
@@ -726,7 +860,7 @@ val QUIPS = listOf("Every circuit starts with one node.", "Signal over noise tod
         due > 0 -> "$due flashcards are waiting for you."
         streak(d) >= 2 -> "${streak(d)}-day study streak. Keep the signal strong."
         todayMin(d) > 0 -> "${todayMin(d)} minutes studied today. Nice."
-        else -> QUIPS[(today % QUIPS.size).toInt()]
+        else -> pep[((today + seed) % pep.size).toInt()]
     }
     GlassCard(Modifier.fillMaxWidth().padding(vertical = 8.dp).clickable(onClick = onName), RoundedCornerShape(18.dp)) {
         Column(Modifier.padding(16.dp)) {
@@ -734,4 +868,13 @@ val QUIPS = listOf("Every circuit starts with one node.", "Signal over noise tod
             Text(line, color = Ink.copy(alpha = 0.7f), fontSize = 14.sp)
         }
     }
+}
+
+/** Start and end of the sentence (or line) around [pos]. */
+fun sentenceRange(t: String, pos: Int): Pair<Int, Int> {
+    var a = pos.coerceIn(0, t.length); while (a > 0 && t[a - 1] !in ".!?\n") a--
+    var b = pos.coerceIn(0, t.length); while (b < t.length && t[b] !in ".!?\n") b++
+    if (b < t.length && t[b] != '\n') b++
+    while (a < b && t[a] == ' ') a++
+    return a to b
 }

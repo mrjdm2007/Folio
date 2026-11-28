@@ -39,6 +39,8 @@ fun exportPagePdf(s: Store, n: Node, out: OutputStream) {
             "code" -> text(b.text, 10f, mono = true, indent = 8)
             "latex" -> text("$$ " + b.text + " $$", 11f, mono = true, indent = 8)
             "table" -> text(b.text.replace("|", "  |  "), 11f, mono = true, indent = 8)
+            "cloze" -> text(b.text.replace("{{", "").replace("}}", ""), 12f)
+            "quiz" -> text("Q: ${b.text}\n" + quizOptions(b).first.mapIndexed { k, o -> "${'A' + k}. $o" }.joinToString("\n"), 12f, Typeface.BOLD)
             "flash" -> text("Q: ${b.text}\nA: ${b.extra}", 12f, Typeface.BOLD)
             "file" -> text("[Attachment] ${b.extra}", 11f, Typeface.ITALIC)
             "image" -> loadBitmap(s.attachmentFile(b.text), 1000)?.let { bmp ->

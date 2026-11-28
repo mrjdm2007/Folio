@@ -1,5 +1,4 @@
 import java.util.Properties
-import java.net.URL
 
 plugins {
     id("com.android.application")
@@ -14,7 +13,7 @@ val ks = Properties().apply { if (ksFile.exists()) ksFile.inputStream().use { lo
 android {
     namespace = "com.folio.app"
     compileSdk = 34
-    defaultConfig { applicationId = "com.folio.app"; minSdk = 26; targetSdk = 34; versionCode = 5; versionName = "0.5" }
+    defaultConfig { applicationId = "com.folio.app"; minSdk = 26; targetSdk = 34; versionCode = 8; versionName = "0.8" }
     signingConfigs {
         if (ksFile.exists()) create("release") {
             storeFile = file(ks.getProperty("storeFile"))
@@ -63,10 +62,32 @@ tasks.register("downloadKatex") {
             val out = File(katexDir, f)
             if (!out.exists()) {
                 out.parentFile.mkdirs()
-                try { URL(base + f).openStream().use { i -> out.outputStream().use { o -> i.copyTo(o) } } }
+                try { java.net.URL(base + f).openStream().use { i -> out.outputStream().use { o -> i.copyTo(o) } } }
                 catch (e: Exception) { println("KaTeX download skipped for $f: ${e.message}") }
             }
         }
     }
 }
-tasks.matching { it.name == "preBuild" }.configureEach { dependsOn("downloadKatex") }
+
+// Exact-layout document viewer libraries (open source web renderers), also fetched at build time.
+fun fetchFirst(out: File, urls: List<String>) {
+    if (out.exists() && out.length() > 1000) return
+    out.parentFile.mkdirs()
+    for (u in urls) {
+        try {
+            java.net.URL(u).openStream().use { i -> out.outputStream().use { o -> i.copyTo(o) } }
+            if (out.length() > 1000) return
+        } catch (e: Exception) { }
+    }
+    out.delete(); println("Viewer library skipped (offline or not found): ${out.name}")
+}
+tasks.register("downloadViewerLibs") {
+    doLast {
+        val d = file("src/main/assets/viewer"); val j = "https://cdn.jsdelivr.net/npm/"
+        fetchFirst(File(d, "jszip.min.js"), listOf(j + "jszip@3.10.1/dist/jszip.min.js"))
+        fetchFirst(File(d, "docx-preview.min.js"), listOf("0.3.5", "0.3.4", "0.3.3", "0.3.2", "0.3.1", "0.3.0").map { j + "docx-preview@$it/dist/docx-preview.min.js" })
+        fetchFirst(File(d, "xlsx.full.min.js"), listOf(j + "xlsx@0.18.5/dist/xlsx.full.min.js"))
+        fetchFirst(File(d, "pptx-preview.umd.js"), listOf("1.0.5", "1.0.4", "1.0.3", "1.0.2", "1.0.1").map { j + "pptx-preview@$it/dist/pptx-preview.umd.js" })
+    }
+}
+tasks.matching { it.name == "preBuild" }.configureEach { dependsOn("downloadKatex", "downloadViewerLibs") }

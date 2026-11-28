@@ -21,8 +21,8 @@ import kotlin.math.*
 @Composable fun ToolsScreen(s: Store) {
     var sub by remember { mutableIntStateOf(0) }
     Column(Modifier.fillMaxSize().padding(12.dp)) {
-        Row { listOf("Converter", "Graph", "Formulas").forEachIndexed { i, t -> Chip(t, sub == i) { sub = i } } }
-        when (sub) { 0 -> Converter(); 1 -> Grapher(s); else -> Formulas(s) }
+        Row { listOf("Converter", "Graph", "Formulas", "Electronics", "Calculator").forEachIndexed { i, t -> Chip(t, sub == i) { sub = i } } }
+        when (sub) { 0 -> Converter(); 1 -> Grapher(s); 2 -> Formulas(s); 3 -> Electronics(); else -> Calculator() }
     }
 }
 
@@ -35,7 +35,15 @@ val UNITS: Map<String, List<Pair<String, Double>>> = mapOf(
     "Energy" to listOf("J" to 1.0, "kJ" to 1000.0, "cal" to 4.184, "kWh" to 3.6e6, "eV" to 1.602176634e-19),
     "Frequency" to listOf("Hz" to 1.0, "kHz" to 1e3, "MHz" to 1e6, "GHz" to 1e9),
     "Pressure" to listOf("Pa" to 1.0, "kPa" to 1e3, "bar" to 1e5, "atm" to 101325.0),
-    "Speed" to listOf("m/s" to 1.0, "km/h" to 0.277778, "mph" to 0.44704)
+    "Speed" to listOf("m/s" to 1.0, "km/h" to 0.277778, "mph" to 0.44704),
+    "Voltage" to listOf("V" to 1.0, "mV" to 1e-3, "µV" to 1e-6, "kV" to 1e3),
+    "Current" to listOf("A" to 1.0, "mA" to 1e-3, "µA" to 1e-6, "kA" to 1e3),
+    "Resistance" to listOf("Ω" to 1.0, "kΩ" to 1e3, "MΩ" to 1e6, "mΩ" to 1e-3),
+    "Capacitance" to listOf("F" to 1.0, "mF" to 1e-3, "µF" to 1e-6, "nF" to 1e-9, "pF" to 1e-12),
+    "Inductance" to listOf("H" to 1.0, "mH" to 1e-3, "µH" to 1e-6, "nH" to 1e-9),
+    "Power" to listOf("W" to 1.0, "mW" to 1e-3, "kW" to 1e3, "hp" to 745.7),
+    "Angle" to listOf("deg" to 1.0, "rad" to 57.29577951308232, "grad" to 0.9),
+    "Data" to listOf("B" to 1.0, "KB" to 1e3, "MB" to 1e6, "GB" to 1e9, "KiB" to 1024.0, "MiB" to 1048576.0)
 )
 
 fun fmtNum(x: Double): String {
@@ -107,10 +115,12 @@ class Parser(private val s: String, private val x: Double) {
                 i++; val a = expr(); expect(')')
                 return when (name) {
                     "sin" -> sin(a); "cos" -> cos(a); "tan" -> tan(a); "sqrt" -> sqrt(a); "abs" -> abs(a)
-                    "ln" -> ln(a); "log" -> log10(a); "exp" -> exp(a); else -> throw IllegalArgumentException("unknown function $name")
+                    "ln" -> ln(a); "log" -> log10(a); "exp" -> exp(a)
+                    "asin" -> asin(a); "acos" -> acos(a); "atan" -> atan(a); "log2" -> log2(a)
+                    "sinh" -> sinh(a); "cosh" -> cosh(a); "tanh" -> tanh(a); "floor" -> floor(a); "ceil" -> ceil(a); else -> throw IllegalArgumentException("unknown function $name")
                 }
             }
-            return when (name) { "x" -> x; "pi" -> PI; "e" -> E; else -> throw IllegalArgumentException("unknown name $name") }
+            return when (name) { "x" -> x; "pi" -> PI; "e" -> E; "deg" -> PI / 180; else -> throw IllegalArgumentException("unknown name $name") }
         }
         throw IllegalArgumentException("unexpected input")
     }
@@ -184,8 +194,8 @@ fun evalExpr(src: String, x: Double) = Parser(src.lowercase().replace(" ", ""), 
 @Composable fun MoreScreen(s: Store, open: (String) -> Unit, view: (ViewTarget) -> Unit) {
     var sub by remember { mutableIntStateOf(0) }
     Column(Modifier.fillMaxSize().padding(12.dp)) {
-        Row(Modifier.horizontalScroll(rememberScrollState())) { listOf("Bookmarks", "Trash", "Backup", "Checks", "Documents", "Reminders").forEachIndexed { i, t -> Chip(t, sub == i) { sub = i } } }
-        when (sub) { 0 -> Bookmarks(s, open); 1 -> TrashView(s); 2 -> Backup(s); 3 -> Checks(s); 4 -> OpenDoc(s, view); else -> RemindersScreen(s) }
+        Row(Modifier.horizontalScroll(rememberScrollState())) { listOf("Bookmarks", "Trash", "Backup", "Checks", "Documents", "Reminders", "Tags").forEachIndexed { i, t -> Chip(t, sub == i) { sub = i } } }
+        when (sub) { 0 -> Bookmarks(s, open); 1 -> TrashView(s); 2 -> Backup(s); 3 -> Checks(s); 4 -> OpenDoc(s, view); 5 -> RemindersScreen(s); else -> TagsScreen(s, open) }
     }
 }
 
@@ -193,11 +203,15 @@ fun evalExpr(src: String, x: Double) = Parser(src.lowercase().replace(" ", ""), 
     val marks = s.data.nodes.filter { it.bookmarked && !it.deleted }
     var q by remember { mutableStateOf("") }
     var moving by remember { mutableStateOf<Node?>(null) }
+    var renamingFolder by remember { mutableStateOf<String?>(null) }
     Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         OutlinedTextField(q, { q = it }, label = { Text("Search saved notes") }, modifier = Modifier.fillMaxWidth())
         val shown = marks.filter { q.isBlank() || it.title.contains(q, true) }
         shown.groupBy { it.folder.ifBlank { "Unfiled" } }.forEach { (folder, list) ->
-            Text(folder, color = Gold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(folder, color = Gold, modifier = Modifier.weight(1f))
+                if (folder != "Unfiled") Chip("Rename folder") { renamingFolder = folder }
+            }
             list.forEach { n ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(n.title, Modifier.weight(1f).clickable { if (n.kind == "page") open(n.id) })
@@ -209,6 +223,32 @@ fun evalExpr(src: String, x: Double) = Parser(src.lowercase().replace(" ", ""), 
         if (shown.isEmpty()) Text("No bookmarks yet. Tap ☆ on a note.")
     }
     moving?.let { n -> FormDialog("Bookmark folder", listOf("Folder name (blank = unfiled)"), listOf(n.folder), { v -> s.editNode(n.id) { it.copy(folder = v[0].trim()) } }) { moving = null } }
+    renamingFolder?.let { old ->
+        FormDialog("Rename folder", listOf("Folder name"), listOf(old), { v ->
+            val nn = v[0].trim(); s.update { d -> d.copy(nodes = d.nodes.map { x -> if (x.folder == old) x.copy(folder = nn) else x }) }
+        }) { renamingFolder = null }
+    }
+}
+
+@Composable fun TagsScreen(s: Store, open: (String) -> Unit) {
+    var rename by remember { mutableStateOf<String?>(null) }
+    var openTag by remember { mutableStateOf<String?>(null) }
+    val tags = s.tagCounts()
+    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("Tap a tag to see its notes. Rename a tag to fix it, or rename it to an existing tag to merge the two. Add tags to a note in the editor.", fontSize = 13.sp)
+        if (tags.isEmpty()) Text("No tags yet.")
+        tags.forEach { (t, c) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("#$t · $c", Modifier.weight(1f).clickable { openTag = if (openTag == t) null else t }, color = Gold)
+                Chip("Rename") { rename = t }
+                Chip("Delete") { s.deleteTag(t) }
+            }
+            if (openTag == t) s.data.nodes.filter { n -> !n.deleted && t in n.tags }.forEach { n ->
+                Text(s.path(n.id), Modifier.padding(start = 16.dp, bottom = 4.dp).clickable { open(n.id) }, fontSize = 13.sp)
+            }
+        }
+    }
+    rename?.let { old -> FormDialog("Rename #$old", listOf("New name"), listOf(old), { v -> s.renameTag(old, v[0]) }) { rename = null } }
 }
 
 @Composable fun TrashView(s: Store) {
@@ -238,9 +278,18 @@ fun evalExpr(src: String, x: Double) = Parser(src.lowercase().replace(" ", ""), 
         }
     }
     Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        val expCards = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+            val tsv = s.data.cards.joinToString("\n") { c -> listOf(c.front, c.back, c.deck).joinToString("\t") { it.replace("\t", " ").replace("\n", " ") } }
+            uri?.let { ctx.contentResolver.openOutputStream(it)?.use { o -> o.write(tsv.toByteArray()) }; msg = "Flashcards exported" }
+        }
+        val expMd = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+            uri?.let { ctx.contentResolver.openOutputStream(it)?.use { o -> exportNotebookZip(s, o) }; msg = "Markdown export saved" }
+        }
         Text("Everything is saved on this device automatically. The backup is one JSON file that includes your attachments, and the Mac app will read it too.")
         Button({ exp.launch("folio-backup.json") }) { Text("Export backup (JSON)") }
         OutlinedButton({ imp.launch(arrayOf("application/json", "*/*")) }) { Text("Import / restore backup") }
+        OutlinedButton({ expMd.launch("folio-notes.zip") }) { Text("Export all notes as Markdown (.zip)") }
+        OutlinedButton({ expCards.launch("folio-flashcards.txt") }) { Text("Export flashcards (Anki-style text)") }
         if (msg.isNotBlank()) Text(msg, color = Gold)
         SectionTitle("Automatic daily backups")
         val bk = s.backups()

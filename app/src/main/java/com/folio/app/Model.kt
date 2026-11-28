@@ -12,6 +12,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.compose.runtime.mutableIntStateOf
 import android.media.RingtoneManager
+import android.graphics.Bitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -51,12 +52,13 @@ fun numberOf(l: List<Block>, i: Int): Int {
     val id: String = uid(), val parentId: String? = null, val kind: String, val title: String,
     val tags: List<String> = emptyList(), val blocks: List<Block> = emptyList(),
     val deleted: Boolean = false, val bookmarked: Boolean = false, val folder: String = "",
-    val updated: Long = now(), val history: List<Snap> = emptyList(), val readPos: Int = 0
+    val updated: Long = now(), val history: List<Snap> = emptyList(), val readPos: Int = 0,
+    val revDue: Long = 0, val revStep: Int = 0   // topic revision schedule
 )
 @Serializable data class Flash(val id: String = uid(), val deck: String, val front: String, val back: String,
-    val due: Long = 0, val interval: Int = 0, val ease: Double = 2.5, val reps: Int = 0, val last: Long = 0)
+    val due: Long = 0, val interval: Int = 0, val ease: Double = 2.5, val reps: Int = 0, val last: Long = 0, val lapses: Int = 0)
 @Serializable data class Question(val id: String = uid(), val subject: String, val text: String,
-    val options: List<String>, val correct: Int, val explanation: String = "")
+    val options: List<String>, val correct: Int, val explanation: String = "", val right: Int = 0, val wrong: Int = 0)
 @Serializable data class Task(val text: String, val done: Boolean = false)
 @Serializable data class Exam(val id: String = uid(), val title: String, val subject: String, val date: Long,
     val notes: String = "", val tasks: List<Task> = emptyList())
@@ -64,6 +66,7 @@ fun numberOf(l: List<Block>, i: Int): Int {
 @Serializable data class Formula(val id: String = uid(), val name: String, val latex: String)
 @Serializable data class Ann(val id: String = uid(), val file: String, val page: Int, val kind: String,   // "hl" highlight or "note" pin
     val x: Float, val y: Float, val w: Float = 0f, val h: Float = 0f, val text: String = "")   // positions are 0..1 of the page
+@Serializable data class Todo(val id: String = uid(), val text: String, val due: Long = 0, val subject: String = "", val done: Boolean = false)
 @Serializable data class Data(
     val schema: Int = 1,
     val nodes: List<Node> = emptyList(), val cards: List<Flash> = emptyList(),
@@ -72,7 +75,9 @@ fun numberOf(l: List<Block>, i: Int): Int {
     val graphs: List<String> = emptyList(), val dailyGoal: Int = 120,
     val texts: Map<String, String> = emptyMap(),   // extracted PDF text, keyed by stored attachment name
     val userName: String = "", val nameAsked: Boolean = false,
-    val annotations: List<Ann> = emptyList()
+    val annotations: List<Ann> = emptyList(),
+    val reviewLog: Map<String, Int> = emptyMap(),   // date -> cards reviewed that day
+    val todos: List<Todo> = emptyList()
 )
 @Serializable data class BackupFile(val data: Data, val files: Map<String, String> = emptyMap())
 
@@ -125,7 +130,49 @@ class Store(app: Application) : AndroidViewModel(app) {
             }
         })
     }
-    fun editBlocks(id: String, f: (List<Block>) -> List<Block>) = editNode(id) { it.copy(blocks = f(it.blocks)) }
+    // ---- undo / redo (per page, kept in memory; quick bursts of typing count as one step) ----
+    private val undoS = HashMap<String, ArrayList<List<Block>>>()
+    private val redoS = HashMap<String, ArrayList<List<Block>>>()
+    private val lastPush = HashMap<String, Long>()
+    private fun recordUndo(id: String) {
+        val cur = node(id)?.blocks ?: return
+        val st = undoS.getOrPut(id) { ArrayList() }
+        if (st.isEmpty() || now() - (lastPush[id] ?: 0L) > 1200L) { st.add(cur); if (st.size > 60) st.removeAt(0) }
+        lastPush[id] = now(); redoS[id]?.clear()
+    }
+    fun editBlocks(id: String, f: (List<Block>) -> List<Block>) { recordUndo(id); editNode(id) { it.copy(blocks = f(it.blocks)) } }
+    fun canUndo(id: String) = undoS[id]?.isNotEmpty() == true
+    fun canRedo(id: String) = redoS[id]?.isNotEmpty() == true
+    fun undo(id: String) {
+        val st = undoS[id] ?: return; if (st.isEmpty()) return
+        val cur = node(id)?.blocks ?: return
+        redoS.getOrPut(id) { ArrayList() }.add(cur)
+        val prev = st.removeAt(st.size - 1); lastPush[id] = 0L
+        editNode(id) { it.copy(blocks = prev) }
+    }
+    fun redo(id: String) {
+        val st = redoS[id] ?: return; if (st.isEmpty()) return
+        val cur = node(id)?.blocks ?: return
+        undoS.getOrPut(id) { ArrayList() }.add(cur)
+        val next = st.removeAt(st.size - 1); lastPush[id] = 0L
+        editNode(id) { it.copy(blocks = next) }
+    }
+    fun applyTemplate(id: String, name: String) = editBlocks(id) { l ->
+        l.filter { it.text.isNotBlank() || it.type == "image" || it.type == "file" } + templateBlocks(name)
+    }
+    /** Saves a quiz block into the question bank. False if it is incomplete or already saved. */
+    fun addQuizBlock(subject: String, b: Block): Boolean {
+        val (opts, ok) = quizOptions(b)
+        if (b.text.isBlank() || opts.size < 2) return false
+        val q = Question(subject = subject.ifBlank { "General" }, text = b.text.trim(), options = opts, correct = ok)
+        if (data.questions.any { it.text == q.text }) return false
+        update { d -> d.copy(questions = d.questions + q) }; return true
+    }
+    fun saveBitmap(bmp: Bitmap): String? = runCatching {
+        val stored = uid() + ".png"
+        attachmentFile(stored).outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        stored
+    }.getOrNull()
     /** Creates a node and returns its id. Topics (and legacy pages) start with one empty text block, ready to type in. */
     fun add(parent: String?, kind: String, title: String): String {
         val n = Node(parentId = parent, kind = kind, title = title.ifBlank { "Untitled" },
@@ -245,7 +292,7 @@ class Store(app: Application) : AndroidViewModel(app) {
             if (timerLeft <= 0 && timerRunning) finishTimer()
         }
     }
-    fun updateTimerMinutes(m: Int) { if (!timerRunning) { timerMinutes = m; timerLeft = m * 60; saveTimer() } }
+    fun setTimerMinutes(m: Int) { if (!timerRunning) { timerMinutes = m; timerLeft = m * 60; saveTimer() } }
     fun timerToggle() {
         if (timerRunning) {
             timerJob?.cancel(); timerRunning = false
@@ -279,14 +326,59 @@ class Store(app: Application) : AndroidViewModel(app) {
     }
     fun renameDeck(old: String, new: String) =
         update { d -> d.copy(cards = d.cards.map { if (it.deck == old) it.copy(deck = new.ifBlank { old }) else it }) }
+    val appStart = now()
+
+    /** One card per {{hidden}} part: the sentence with that part blanked out on the front, the part itself on the back. */
+    fun addClozeCards(deck: String, text: String): Int {
+        val rx = Regex("\\{\\{(.+?)\\}\\}")
+        val ms = rx.findAll(text).toList()
+        var made = 0
+        ms.forEachIndexed { k, m ->
+            var idx = -1
+            val front = rx.replace(text) { r -> idx++; if (idx == k) "[…]" else r.groupValues[1] }
+            val before = data.cards.size
+            addCard(deck, front, m.groupValues[1]); if (data.cards.size > before) made++
+        }
+        return made
+    }
+
+    // ---- topic revision schedule: 1, 3, 7, 14, 30, then 60 days ----
+    private val revSteps = intArrayOf(1, 3, 7, 14, 30, 60)
+    fun nextRevisionDays(n: Node) = revSteps[minOf(n.revStep, revSteps.size - 1)]
+    fun markRevised(id: String) = update { d ->
+        d.copy(nodes = d.nodes.map { n -> if (n.id != id) n else n.copy(revStep = n.revStep + 1, revDue = now() + nextRevisionDays(n) * DAY) })
+    }
+    fun stopRevising(id: String) = update { d -> d.copy(nodes = d.nodes.map { n -> if (n.id == id) n.copy(revDue = 0, revStep = 0) else n }) }
+    fun dueRevisions(): List<Node> = data.nodes.filter { !it.deleted && it.revDue > 0 && it.revDue <= now() }.sortedBy { it.revDue }
+
+    /** Quick capture: a fresh topic in Quick Notes > Inbox, ready to type in. */
+    fun quickNote(): String {
+        val course = data.nodes.firstOrNull { it.kind == "course" && it.title == "Quick Notes" && !it.deleted }?.id ?: add(null, "course", "Quick Notes")
+        val chapter = data.nodes.firstOrNull { it.kind == "chapter" && it.parentId == course && !it.deleted }?.id ?: add(course, "chapter", "Inbox")
+        return add(chapter, "topic", "Quick note " + fmt(now()))
+    }
+
+    fun tagCounts(): List<Pair<String, Int>> =
+        data.nodes.filter { !it.deleted }.flatMap { it.tags }.groupingBy { it }.eachCount().toList().sortedByDescending { it.second }
+    fun renameTag(old: String, new: String) {
+        val n = new.trim().removePrefix("#"); if (n.isBlank()) return
+        update { d -> d.copy(nodes = d.nodes.map { x -> if (old in x.tags) x.copy(tags = x.tags.map { if (it == old) n else it }.distinct()) else x }) }
+    }
+    fun deleteTag(tag: String) = update { d -> d.copy(nodes = d.nodes.map { x -> if (tag in x.tags) x.copy(tags = x.tags - tag) else x }) }
+
+    fun recordAnswer(qid: String, ok: Boolean) = update { d ->
+        d.copy(questions = d.questions.map { if (it.id == qid) it.copy(right = it.right + (if (ok) 1 else 0), wrong = it.wrong + (if (ok) 0 else 1)) else it })
+    }
+
     fun rate(id: String, r: Int) = update { d ->
-        d.copy(cards = d.cards.map { c ->
+        val day = java.time.LocalDate.now().toString()
+        d.copy(reviewLog = d.reviewLog + (day to ((d.reviewLog[day] ?: 0) + 1)), cards = d.cards.map { c ->
             if (c.id != id) c else (when (r) {
                 0 -> c.copy(interval = 0, reps = 0, ease = maxOf(1.3, c.ease - 0.2), due = now() + 10 * 60_000L)
                 1 -> { val i = maxOf(1, (maxOf(c.interval, 1) * 1.2).toInt()); c.copy(interval = i, reps = c.reps + 1, ease = maxOf(1.3, c.ease - 0.15), due = now() + i * DAY) }
                 2 -> { val i = when (c.reps) { 0 -> 1; 1 -> 3; else -> (c.interval * c.ease).toInt() }; c.copy(interval = i, reps = c.reps + 1, due = now() + i * DAY) }
                 else -> { val i = when (c.reps) { 0 -> 4; 1 -> 7; else -> (c.interval * c.ease * 1.3).toInt() }; c.copy(interval = i, reps = c.reps + 1, ease = c.ease + 0.15, due = now() + i * DAY) }
-            }).copy(last = now())
+            }).copy(last = now(), lapses = c.lapses + (if (r == 0) 1 else 0))
         })
     }
 
