@@ -292,7 +292,7 @@ class Store(app: Application) : AndroidViewModel(app) {
             if (timerLeft <= 0 && timerRunning) finishTimer()
         }
     }
-    fun setTimerMinutes(m: Int) { if (!timerRunning) { timerMinutes = m; timerLeft = m * 60; saveTimer() } }
+    fun changeTimerMinutes(m: Int) { if (!timerRunning) { timerMinutes = m; timerLeft = m * 60; saveTimer() } }
     fun timerToggle() {
         if (timerRunning) {
             timerJob?.cancel(); timerRunning = false
