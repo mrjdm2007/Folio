@@ -296,7 +296,7 @@ fun streak(d: Data): Int {
             shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
         Chip("Pick a topic from my notes") { pick = true }
         if (pick) TopicPicker(s, "Study which topic?", onPick = { s.timerSubject = it.title }, onClose = { pick = false })
-        Row { listOf(15, 25, 45, 60, 90).forEach { m -> Chip("$m", s.timerMinutes == m) { s.setTimerMinutes(m) } } }
+        Row { listOf(15, 25, 45, 60, 90).forEach { m -> Chip("$m", s.timerMinutes == m) { s.changeTimerMinutes(m) } } }
         Text(java.lang.String.format(java.util.Locale.US, "%02d:%02d", s.timerLeft / 60, s.timerLeft % 60), fontSize = 64.sp, color = Gold)
         Row {
             Button({ s.timerToggle() }) { Text(if (s.timerRunning) "Pause" else if (s.timerLeft < s.timerMinutes * 60) "Resume" else "Start") }
